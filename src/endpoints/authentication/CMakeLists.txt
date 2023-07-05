@@ -25,6 +25,7 @@ target_include_directories(
   ${IRODS_EXTERNALS_FULLPATH_FMT}/include
   ${IRODS_EXTERNALS_FULLPATH_SPDLOG}/include
   CURL::libcurl
+  ${jwt_SOURCE_DIR}/include
   ${CMAKE_BINARY_DIR}/src # For version.hpp
   ${CMAKE_SOURCE_DIR}/src # For log.hpp
   ${CMAKE_SOURCE_DIR}/src/endpoints) # For common.hpp
@@ -34,4 +35,5 @@ target_link_libraries(
   PRIVATE
   irods_client
   ${IRODS_EXTERNALS_FULLPATH_FMT}/lib/libfmt.so
+  jwt
   CURL::libcurl)
