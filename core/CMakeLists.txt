@@ -51,26 +51,11 @@ target_include_directories(
   "${IRODS_EXTERNALS_FULLPATH_BOOST}/include"
 )
 
-if (${IRODS_VERSION} VERSION_GREATER "4.3.1")
-  target_link_libraries(
-    irods_http_api_core
-    PUBLIC
-    fmt::fmt
-    spdlog::spdlog
-  )
-else()
-  target_link_libraries(
-    irods_http_api_core
-    PRIVATE
-    "${IRODS_EXTERNALS_FULLPATH_FMT}/lib/libfmt.so"
-  )
-
-  target_include_directories(
-    irods_http_api_core
-    PRIVATE
-    "${IRODS_EXTERNALS_FULLPATH_FMT}/include"
-    "${IRODS_EXTERNALS_FULLPATH_SPDLOG}/include"
-  )
-endif()
+target_link_libraries(
+  irods_http_api_core
+  PUBLIC
+  fmt::fmt
+  spdlog::spdlog
+)
 
 set_target_properties(irods_http_api_core PROPERTIES EXCLUDE_FROM_ALL TRUE)

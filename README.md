@@ -67,24 +67,16 @@ API documentation can be found in [API.md](./API.md).
 
 ## Build Dependencies
 
-- iRODS development package
+- iRODS development package _(4.3.2 or later)_
 - iRODS externals package for boost
 - iRODS externals package for nlohmann-json
 - iRODS externals package for spdlog 
 - Curl development package
 - OpenSSL development package
-- GenQuery2 package (optional)
 
 ## Build
 
-This project can be built with or without support for [GenQuery2](https://github.com/irods/irods_api_plugin_genquery2).
-
-GenQuery2 is disabled by default.
-
-### Building without GenQuery2
-
-If you don't need support for GenQuery2, follow the normal CMake steps.
-
+To build this project, follow the normal CMake build steps.
 ```bash
 mkdir build # Preferably outside of the repository
 cd build
@@ -94,26 +86,9 @@ make package # Use -j to use more parallelism.
 
 Upon success, you should have an installable package.
 
-### Building with GenQuery2
-
-To build with GenQuery2 enabled, the HTTP API needs access to files only provided by the GenQuery2 package.
-
-If you haven't already done so, install the GenQuery2 package. See the [GenQuery2](https://github.com/irods/irods_api_plugin_genquery2) repository for details on how to do that.
-
-Now, run the following steps to produce an installable package.
-
-```bash
-mkdir build # Preferably outside of the repository
-cd build
-cmake -DIRODS_ENABLE_GENQUERY2=YES /path/to/repository
-make package # Use -j to use more parallelism.
-```
-
-Keep in mind that even though you've compiled the HTTP API with support for GenQuery2, that is half the story. You must also install the GenQuery2 package on the iRODS server which the HTTP API will connect to and the iRODS Catalog Service Provider.
-
 ## Docker
 
-This project provides two Dockerfiles, one for building and one for running the application. GenQuery2 is enabled by default. As mentioned in the previous section, the iRODS server must have GenQuery2 installed before attempting to use the parser.
+This project provides two Dockerfiles, one for building and one for running the application.
 
 **IMPORTANT: All commands in the sections that follow assume you are located in the root of the repository.**
 
@@ -124,22 +99,21 @@ The builder image is responsible for building the iRODS HTTP API package. Before
 docker build -t irods-http-api-builder -f irods_builder.Dockerfile .
 ```
 
-With the builder image in hand, all that's left is to get the source code for the GenQuery2 project and HTTP API project. The builder image is designed to compile code sitting on your machine. This is important because it gives you the ability to build any fork or branch of the projects.
+With the builder image in hand, all that's left is to build the iRODS HTTP API project. The builder image is designed to compile code sitting on your machine. This is important because it gives you the ability to build any version of the project derived from this branch.
 
-Building the packages requires mounting the projects into the container at the appropriate locations. The command you run should look similar to the one below. Don't forget to create the directory which will hold your packages!
+Building the package requires mounting the project into the container at the appropriate location. The command you run should look similar to the one below. **Don't forget to create the directory which will hold your packages!**
 ```bash
 docker run -it --rm \
-    -v /path/to/irods_api_plugin_genquery2:/genquery2_source:ro \
     -v /path/to/irods_client_http_api:/http_api_source:ro \
     -v /path/to/packages_directory:/packages_output \
     irods-http-api-builder
 ```
 
-If everything succeeds, you will have two DEB packages in the local directory you mapped to **/packages_output**.
+If everything succeeds, you will have a DEB package in the local directory you mapped to **/packages_output**.
 
 ### The Runner Image
 
-The runner image is responsible for running the iRODS HTTP API. Building the runner image requires the DEB packages for GenQuery2 and the iRODS HTTP API to exist on the local machine. See the previous section for details on generating the packages.
+The runner image is responsible for running the iRODS HTTP API. Building the runner image requires the DEB package for the iRODS HTTP API to exist on the local machine. See the previous section for details on generating the package.
 
 To build the image, run the following command:
 ```bash

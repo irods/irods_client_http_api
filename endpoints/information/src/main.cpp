@@ -34,18 +34,11 @@ namespace irods::http::handler
 			res.set(field_type::content_type, "application/json");
 			res.keep_alive(_req.keep_alive());
 
-#ifdef IRODS_ENABLE_GENQUERY2
-#  define GENQUERY2_ENABLED true
-#else
-// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
-#  define GENQUERY2_ENABLED false
-#endif // IRODS_ENABLE_GENQUERY2
-
 			// clang-format off
 			res.body() = json{
 				{"api_version", irods::http::version::api_version},
 				{"build", irods::http::version::sha},
-				{"genquery2_enabled", GENQUERY2_ENABLED},
+				{"genquery2_enabled", true},
 				{"irods_zone", irods_client_config.at("zone")},
 				{"max_number_of_parallel_write_streams", irods_client_config.at("max_number_of_parallel_write_streams")},
 				{"max_number_of_rows_per_catalog_query", irods_client_config.at("max_number_of_rows_per_catalog_query")},

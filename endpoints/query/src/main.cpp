@@ -7,6 +7,7 @@
 #include "irods/private/http_api/version.hpp"
 
 #include <irods/generalAdmin.h>
+#include <irods/genquery2.h>
 #include <irods/irods_at_scope_exit.hpp>
 #include <irods/irods_exception.hpp>
 #include <irods/irods_query.hpp>
@@ -14,10 +15,6 @@
 #include <irods/query_builder.hpp>
 #include <irods/rodsErrorTable.h>
 #include <irods/rodsGenQuery.h>
-
-#ifdef IRODS_ENABLE_GENQUERY2
-#  include <irods/plugins/api/genquery2_common.h>
-#endif // IRODS_ENABLE_GENQUERY2
 
 #include <boost/algorithm/string.hpp>
 #include <boost/asio.hpp>
@@ -137,8 +134,7 @@ namespace
 					auto conn = irods::get_connection(client_info.username);
 
 					if ("genquery2" == parser) {
-#ifdef IRODS_ENABLE_GENQUERY2
-						genquery2_input input{};
+						Genquery2Input input{};
 						input.query_string = query_iter->second.data();
 
 						auto sql_only_iter = args.find("sql-only");
@@ -154,13 +150,7 @@ namespace
 						char* output{};
 						irods::at_scope_exit free_output{[&output] { std::free(output); }};
 
-						const auto ec = procApiRequest(
-							static_cast<RcComm*>(conn),
-							IRODS_APN_GENQUERY2,
-							&input,
-							nullptr,
-							reinterpret_cast<void**>(&output),
-							nullptr);
+						const auto ec = rc_genquery2(static_cast<RcComm*>(conn), &input, &output);
 
 						if (ec < 0) {
 							res.result(http::status::bad_request);
@@ -178,13 +168,6 @@ namespace
 								R"_({{"irods_response":{{"status_code":0}},"sql":"{}"}})_";
 							res.body() = fmt::format(json_fmt_string, output);
 						}
-#else
-						res.result(http::status::bad_request);
-						res.body() = json{{"irods_response",
-					                       {{"status_code", 0},
-					                        {"status_message", "GenQuery2 not enabled. Use GenQuery1 parser."}}}}
-					                     .dump();
-#endif // IRODS_ENABLE_GENQUERY2
 					}
 					else {
 						irods::experimental::query_builder qb;

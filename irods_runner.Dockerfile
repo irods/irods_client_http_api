@@ -33,7 +33,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 RUN wget -qO - https://packages.irods.org/irods-signing-key.asc | apt-key add - && \
     echo "deb [arch=amd64] https://packages.irods.org/apt/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/renci-irods.list
 
-ARG irods_version=4.3.1-0~jammy
+ARG irods_version=4.3.2-0~jammy
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
@@ -43,7 +43,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         gcc \
         gcc-11 \
         irods-runtime=${irods_version} \
-        irods-externals-clang-runtime13.0.0-0 \
+        irods-externals-clang-runtime13.0.1-0 \
     && \
     rm -rf /tmp/*
 

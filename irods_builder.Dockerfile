@@ -31,25 +31,23 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 RUN wget -qO - https://packages.irods.org/irods-signing-key.asc | apt-key add - && \
     echo "deb [arch=amd64] https://packages.irods.org/apt/ $(lsb_release -sc) main" | tee /etc/apt/sources.list.d/renci-irods.list
 
-ARG irods_version=4.3.1-0~jammy
+ARG irods_version=4.3.2-0~jammy
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
     apt-get install -y \
         apt-transport-https \
-        flex \
-        bison \
         g++-11 \
         gcc-11 \
         irods-dev=${irods_version} \
         irods-runtime=${irods_version} \
-        irods-externals-clang13.0.0-0 \
+        irods-externals-clang13.0.1-0 \
         irods-externals-cmake3.21.4-0 \
-        irods-externals-fmt8.1.1-0 \
+        irods-externals-fmt-libcxx8.1.1-1 \
         irods-externals-json3.10.4-0 \
         irods-externals-jwt-cpp0.6.99.0-0 \
-        irods-externals-nanodbc2.13.0-1 \
-        irods-externals-spdlog1.9.2-1 \
+        irods-externals-nanodbc-libcxx2.13.0-2 \
+        irods-externals-spdlog-libcxx1.9.2-2 \
         libcurl4-gnutls-dev \
         libssl-dev \
         libssl3 \

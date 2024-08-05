@@ -4,7 +4,8 @@ cmake_minimum_required(VERSION 3.18.0 FATAL_ERROR)
 # Build Configuration
 #
 
-find_package(IRODS REQUIRED)
+set(IRODS_MINIMUM_VERSION "4.3.2")
+find_package(IRODS "${IRODS_MINIMUM_VERSION}" REQUIRED)
 
 include(RequireOutOfSourceBuild)
 
@@ -64,11 +65,11 @@ if (IRODS_ENABLE_ADDRESS_SANITIZER)
   # Make sure the correct llvm-symbolizer binary is available to Address Sanitizer. This binary
   # allows debug symbols to be reported appropriately. There are two ways to do this:
   #
-  #     export PATH=/opt/irods-externals/clang13.0.0-0/bin:$PATH
+  #     export PATH=/opt/irods-externals/clang13.0.1-0/bin:$PATH
   #
   # - or -
   #
-  #     export ASAN_SYMBOLIZER_PATH=/opt/irods-externals/clang13.0.0-0/bin/llvm-symbolizer
+  #     export ASAN_SYMBOLIZER_PATH=/opt/irods-externals/clang13.0.1-0/bin/llvm-symbolizer
   #
   # detect_container_overflow is disabled to guard against false positives which occur when
   # parts of the binary are compiled with ASAN and other parts are not.
@@ -87,20 +88,16 @@ else()
   set(CMAKE_EXE_LINKER_FLAGS_INIT "${CMAKE_EXE_LINKER_FLAGS_INIT} -Wl,-z,defs")
 endif()
 
-set(IRODS_ENABLE_GENQUERY2 OFF CACHE BOOL "Enable GenQuery2 support. GenQuery2 package must be installed.")
-
 set(IRODS_HTTP_PROJECT_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(IRODS_HTTP_PROJECT_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 
 find_package(CURL REQUIRED)
 find_package(nlohmann_json "3.6.1" REQUIRED)
 
-if (${IRODS_VERSION} VERSION_GREATER "4.3.1")
-  find_package(fmt "8.1.1"
-    HINTS "${IRODS_EXTERNALS_FULLPATH_FMT}")
-  find_package(spdlog "1.9.2"
-    HINTS "${IRODS_EXTERNALS_FULLPATH_SPDLOG}")
-endif()
+find_package(fmt "8.1.1" REQUIRED
+  HINTS "${IRODS_EXTERNALS_FULLPATH_FMT}")
+find_package(spdlog "1.9.2" REQUIRED
+  HINTS "${IRODS_EXTERNALS_FULLPATH_SPDLOG}")
 
 find_package(OpenSSL REQUIRED COMPONENTS Crypto SSL)
 

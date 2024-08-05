@@ -28,17 +28,4 @@ target_include_directories(
   "${IRODS_EXTERNALS_FULLPATH_BOOST}/include"
 )
 
-if (${IRODS_VERSION} VERSION_EQUAL "4.3.1")
-  target_include_directories(
-    irods_http_api_endpoint_query
-    PRIVATE
-    "${IRODS_EXTERNALS_FULLPATH_FMT}/include"
-    "${IRODS_EXTERNALS_FULLPATH_SPDLOG}/include"
-  )
-endif()
-
-if (IRODS_ENABLE_GENQUERY2)
-  target_compile_definitions(irods_http_api_endpoint_query PRIVATE IRODS_ENABLE_GENQUERY2)
-endif()
-
 set_target_properties(irods_http_api_endpoint_query PROPERTIES EXCLUDE_FROM_ALL TRUE)
