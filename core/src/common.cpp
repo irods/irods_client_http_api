@@ -402,34 +402,6 @@ namespace irods::http
 	auto fetch_jwks_from_openid_provider() -> nlohmann::json {
 
 	}
-
-	/// \param[in] _res
-	///
-	/// \todo Can this only be done once? I'm not sure...
-	auto create_validator_from_jwks(nlohmann::json _res) -> jwt::verifyer {
-		auto keys{fetch_jwks_from_openid_provider()};
-		auto jwk_list{keys.at("keys")};
-
-		// Create the verifier
-		auto jwt_verifier{jwt::verify()};
-
-		for (auto jwk : jwk_list) {
-			// Can be just assume that this works?
-			auto key_type{jwk["kty"].get_ref<const std::string&>()};
-
-			// If there is no use provided, assume that this is a 'sig' type
-			if (auto jwk_use{jwk.find("use")}; jwk_use != std::end(jwk) && jwk_use.get_ref<const std::string>() == "enc") {
-				continue;
-			}
-
-			// Be lazy and ignore any possible 'alg', let code figure it out...
-			if (key_type == "rsa") {
-				jwt::algorithm::rsa();
-			}
-		}
-
-		return jwt_verifier;
-	}
 	
 	/// Validates an OAuth 2.0 Access Token using
 	/// See RFC 9068 for more details
@@ -439,10 +411,25 @@ namespace irods::http
 		// Decode the token
 		auto decoded_token{jwt::decode(_thing)};
 
-		// Validate using
-		auto validator{create_validator_from_jwks()};
+		// Build up the JWKs
+		// TODO: verify we can cheat and make these static?
+		static auto keys{fetch_jwks_from_openid_provider()};
+		static auto jwks{jwt::parse_jwks(keys)};
 
-		validator.verify(decoded_token);
+		// Get the JWK the access token was signed with
+		auto jwk{decoded_token.get_key_id()};
+
+		// Get values for x5c
+		auto x5c{jwk.get_x5c_key_value()};
+		auto issuer{decoded_token.get_issuer()};
+
+		// As far as I know, the x5c is optional and NOT specified in
+		// RFC 9068. However, I will leave here just in case this may be of use
+		// later (think OAuth security best practices)
+		if (!(x5c.empty() || issuer.empty())) {
+
+		}
+		
 	}
 	
 	auto resolve_client_identity(const request_type& _req) -> client_identity_resolution_result
