@@ -362,6 +362,89 @@ namespace irods::http
 		return std::nullopt;
 	}
 
+	/// Validates an OAuth 2.0 Access Token using the Introspection Endpoint
+	/// See RFC 7662 for more details
+	///
+	/// \returns 
+	auto validate_using_introspection_endpoint(std::string_view _bearer_token) -> std::optional<nlohmann::json> {
+		body_arguments args{{"token", _bearer_token}, {"token_type_hint", "access_token"}};
+
+		auto json_res{hit_introspection_endpoint(url_encode_body(args))};
+
+		// Validate access token
+		if (!json_res.at("active").get<bool>()) {
+			logging::warn("{}: Access token is invalid or expired.", __func__);
+			return std::nullopt;
+		}
+
+		return json_res;
+	}
+
+
+	/// Fetches JWKs from the location specified by the OpenID Provider
+	///
+	/// See OpenID Connect Discovery 1.0 Section 3 for info on jwks_uri
+	///
+	/// See RFC 7517 for more information on JSON Web Key
+	///
+	/// \returns ...
+	///
+	/// Expected JSON response from the jwks_uri:
+	/// {
+	///   "keys": [
+	///     {key1},
+	///     ... ,
+	///     {keyN}
+	///   ]
+	/// }
+	///
+	/// \todo Stash the results from this function, only allow to run once.
+	auto fetch_jwks_from_openid_provider() -> nlohmann::json {
+
+	}
+
+	/// \param[in] _res
+	///
+	/// \todo Can this only be done once? I'm not sure...
+	auto create_validator_from_jwks(nlohmann::json _res) -> jwt::verifyer {
+		auto keys{fetch_jwks_from_openid_provider()};
+		auto jwk_list{keys.at("keys")};
+
+		// Create the verifier
+		auto jwt_verifier{jwt::verify()};
+
+		for (auto jwk : jwk_list) {
+			// Can be just assume that this works?
+			auto key_type{jwk["kty"].get_ref<const std::string&>()};
+
+			// If there is no use provided, assume that this is a 'sig' type
+			if (auto jwk_use{jwk.find("use")}; jwk_use != std::end(jwk) && jwk_use.get_ref<const std::string>() == "enc") {
+				continue;
+			}
+
+			// Be lazy and ignore any possible 'alg', let code figure it out...
+			if (key_type == "rsa") {
+				jwt::algorithm::rsa();
+			}
+		}
+
+		return jwt_verifier;
+	}
+	
+	/// Validates an OAuth 2.0 Access Token using
+	/// See RFC 9068 for more details
+	///
+	/// \returns 
+	auto validate_using_local_validation(std::string_view _thing) -> std::optional<nlohmannn::json> {
+		// Decode the token
+		auto decoded_token{jwt::decode(_thing)};
+
+		// Validate using
+		auto validator{create_validator_from_jwks()};
+
+		validator.verify(decoded_token);
+	}
+	
 	auto resolve_client_identity(const request_type& _req) -> client_identity_resolution_result
 	{
 		namespace logging = irods::http::log;
@@ -407,14 +490,27 @@ namespace irods::http
 
 			// If we're running as a protected resource, assume we have a OIDC token
 			if (oidc_config_iter->at("mode").get_ref<const std::string&>() == "protected_resource") {
-				body_arguments args{{"token", bearer_token}, {"token_type_hint", "access_token"}};
+				nlohmann::json json_res;
 
-				auto json_res{hit_introspection_endpoint(url_encode_body(args))};
+				// Use introspection endpoint if it exsists
+				if (auto introspection_endpoint_iter{irods::http::globals::oidc_endpoint_configuration().find(nlohmann::json::json_pointer{"/introspection_endpoint"})}; introspection_endpoint_iter != std::end(irods::http::globals::oidc_endpoint_configuration())) {
+					auto possible_json_res{validate_using_introspection_endpoint(bearer_token)};
 
-				// Validate access token
-				if (!json_res.at("active").get<bool>()) {
-					logging::warn("{}: Access token is invalid or expired.", __func__);
-					return {.response = fail(status_type::unauthorized)};
+					if (!possible_json_res) {
+						return {.response = fail(status_type::unauthorized)};
+					}
+
+					json_res = *possible_json_res;
+				}
+				// Otherwise, try parsing as a JWT access token
+				else {
+					auto possible_json_res{validate_using_local_validation()};
+
+					if (!possible_json_res) {
+						return {.response = fail(status_type::unauthorized)};
+					}
+
+					json_res = *possible_json_res;
 				}
 
 				// Do mapping of user to irods user
