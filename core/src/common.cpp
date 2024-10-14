@@ -25,6 +25,8 @@
 #include <boost/beast.hpp>
 
 #include <curl/curl.h>
+#include <jwt-cpp/jwt.h>
+#include <jwt-cpp/traits/nlohmann-json/traits.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
@@ -400,21 +402,31 @@ namespace irods::http
 	///
 	/// \todo Stash the results from this function, only allow to run once.
 	auto fetch_jwks_from_openid_provider() -> nlohmann::json {
-
+		return {};
 	}
 	
 	/// Validates an OAuth 2.0 Access Token using
-	/// See RFC 9068 for more details
 	///
-	/// \returns 
+	/// See RFC 9068 for more details on JWT for OAuth 2.0
+	/// See RFC 7515 for details on JSON Web Signature (JWS)
+	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
+	///
+	/// \returns A JWT if the token can be validated. Otherwise, an empty std::optional is returned
 	auto validate_using_local_validation(std::string_view _thing) -> std::optional<nlohmannn::json> {
 		// Decode the token
-		auto decoded_token{jwt::decode(_thing)};
+		auto decoded_token{jwt::decode<jwt::traits::nlohmann_json>(_thing)};
+
+		// Validate 'typ' is 'at+jwt' or 'application/at+jwt', reject all others
+
+		// TODO: Handle encrypted tokens
+		// MUST reject unencrypted tokens if encryption was negotiated at registration
+
+		// Verify 'aud' contains identifier we expect (ourselves)
+		// TODO: Check Security Best Practices for additional details...
 
 		// Build up the JWKs
-		// TODO: verify we can cheat and make these static?
 		static auto keys{fetch_jwks_from_openid_provider()};
-		static auto jwks{jwt::parse_jwks(keys)};
+		static auto jwks{jwt::parse_jwks<jwt::traits::nlohmann_json>(keys)};
 
 		// Get the JWK the access token was signed with
 		auto jwk{decoded_token.get_key_id()};
@@ -429,7 +441,31 @@ namespace irods::http
 		if (!(x5c.empty() || issuer.empty())) {
 
 		}
-		
+
+		// Try to be lazy and use general type only...
+		auto key_type{jwk_key_type};
+
+		// Reject 'alg' type of 'none'
+		if (key_type == "none") {
+			// ...
+		}
+
+		// Details of the specific algoritms are defined by RFC 7518 (JWA)
+		if (key_type == "RSA") {
+			// Get modulus parameter (JWA)
+			auto mod{jwk.get_jwk_claim("n").as_string()};
+
+			// Get exponent parameter (JWA)
+			auto exp{jwk.get_jwk_claim("e").as_string()};
+
+			// Build up the verifier
+			auto verifier{jwt::verify<jwt::traits::nlohmann_json>().allow_algorithm(
+																					jwt::algorithm::rsa(jwt::helper::create_pubilc_key_from_rsa_components(modulus, exponent))).with_issuer(issuer)};
+
+			verifier.verify(decoded_token);
+		}
+
+		return std::nullopt;
 	}
 	
 	auto resolve_client_identity(const request_type& _req) -> client_identity_resolution_result
