@@ -368,7 +368,9 @@ namespace irods::http
 	/// See RFC 7662 for more details
 	///
 	/// \returns 
-	auto validate_using_introspection_endpoint(std::string_view _bearer_token) -> std::optional<nlohmann::json> {
+	auto validate_using_introspection_endpoint(std::string _bearer_token) -> std::optional<nlohmann::json> {
+		namespace logging = irods::http::log;
+
 		body_arguments args{{"token", _bearer_token}, {"token_type_hint", "access_token"}};
 
 		auto json_res{hit_introspection_endpoint(url_encode_body(args))};
@@ -387,22 +389,51 @@ namespace irods::http
 	///
 	/// See OpenID Connect Discovery 1.0 Section 3 for info on jwks_uri
 	///
-	/// See RFC 7517 for more information on JSON Web Key
+	/// See RFC 7517 for more information on JSON Web Key (JWK)
 	///
 	/// \returns ...
 	///
-	/// Expected JSON response from the jwks_uri:
-	/// {
-	///   "keys": [
-	///     {key1},
-	///     ... ,
-	///     {keyN}
-	///   ]
-	/// }
-	///
 	/// \todo Stash the results from this function, only allow to run once.
 	auto fetch_jwks_from_openid_provider() -> nlohmann::json {
-		return {};
+		namespace logging = irods::http::log;
+
+		const auto jwks_uri{irods::http::globals::oidc_endpoint_configuration()
+		                                      .at("jwks_uri")
+		                                      .get_ref<const std::string&>()};
+
+		const auto parsed_uri{boost::urls::parse_uri(jwks_uri)};
+
+		if (parsed_uri.has_error()) {
+			logging::error(
+				"{}: Error trying to parse jwks_uri [{}]. Please check configuration.",
+				__func__,
+				jwks_uri);
+			return {{"error", "bad endpoint"}};
+		}
+
+		const auto url{*parsed_uri};
+		const auto port{get_port_from_url(url)};
+
+		// Addr
+		net::io_context io_ctx;
+		auto tcp_stream{irods::http::transport_factory(url.scheme_id(), io_ctx)};
+		tcp_stream->connect(url.host(), *port);
+
+		// Build Request
+		constexpr auto http_version_number{11};
+		beast::http::request<beast::http::string_body> req{beast::http::verb::get, url.path(), http_version_number};
+		req.set(beast::http::field::host, irods::http::create_host_field(url, *port));
+		req.set(beast::http::field::user_agent, irods::http::version::server_name);
+		req.set(beast::http::field::accept, "application/json");
+		req.prepare_payload();
+
+		// Send request & receive response
+		auto res{tcp_stream->communicate(req)};
+
+		logging::debug("{}: Received the following response: [{}]", __func__, res.body());
+
+		// JSONize response
+		return nlohmann::json::parse(res.body());
 	}
 	
 	/// Validates an OAuth 2.0 Access Token using
@@ -412,7 +443,9 @@ namespace irods::http
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
 	/// \returns A JWT if the token can be validated. Otherwise, an empty std::optional is returned
-	auto validate_using_local_validation(std::string_view _thing) -> std::optional<nlohmannn::json> {
+	auto validate_using_local_validation(std::string _thing) -> std::optional<nlohmann::json> {
+		namespace logging = irods::http::log;
+
 		// Decode the token
 		auto decoded_token{jwt::decode<jwt::traits::nlohmann_json>(_thing)};
 
@@ -429,7 +462,7 @@ namespace irods::http
 		static auto jwks{jwt::parse_jwks<jwt::traits::nlohmann_json>(keys)};
 
 		// Get the JWK the access token was signed with
-		auto jwk{decoded_token.get_key_id()};
+		auto jwk{jwks.get_jwk(decoded_token.get_key_id())};
 
 		// Get values for x5c
 		auto x5c{jwk.get_x5c_key_value()};
@@ -442,30 +475,69 @@ namespace irods::http
 
 		}
 
-		// Try to be lazy and use general type only...
-		auto key_type{jwk_key_type};
+		// Use the 'alg' specified in the access token
+		auto key_type{decoded_token.get_header_claim("alg").as_string()};
 
 		// Reject 'alg' type of 'none'
 		if (key_type == "none") {
-			// ...
+			return std::nullopt;
 		}
 
+		// Manually verify 'typ' matches what is specified in RFC 9068
+		auto token_type{decoded_token.get_header_claim("typ").as_string()};
+		if (!(token_type == "at+jwk" || token_type == "application/at+jwk")) {
+			return std::nullopt;
+		}
+
+		// Begin building up the JWT verifier...
+		auto verifier{
+			jwt::verify<jwt::traits::nlohmann_json>()
+				.with_issuer(
+					irods::http::globals::oidc_endpoint_configuration().at("issuer").get_ref<const std::string&>())
+				.with_audience(
+					irods::http::globals::oidc_configuration().at("client_id").get_ref<const std::string&>())};
+
+		// TODO: Refactor into separate function, taking verifier, jwk, token(?) as parameter, returning verifier(?)
 		// Details of the specific algoritms are defined by RFC 7518 (JWA)
-		if (key_type == "RSA") {
+		if (key_type == "RS256") {
 			// Get modulus parameter (JWA)
 			auto mod{jwk.get_jwk_claim("n").as_string()};
 
 			// Get exponent parameter (JWA)
 			auto exp{jwk.get_jwk_claim("e").as_string()};
 
-			// Build up the verifier
-			auto verifier{jwt::verify<jwt::traits::nlohmann_json>().allow_algorithm(
-																					jwt::algorithm::rsa(jwt::helper::create_pubilc_key_from_rsa_components(modulus, exponent))).with_issuer(issuer)};
+			// Add verification algorithm
+			logging::error("{}: Unable to use RSA256, no helper func :'(", __func__);
+			// verifier.allow_algorithm(jwt::algorithm::rs256(jwt::helper::create_public_key_from_rsa_components(mod, exp)));
+		}
+		if (key_type == "HS256") {
+			// Get key value parameter
+			auto key{jwk.get_jwk_claim("k").as_string()};
 
-			verifier.verify(decoded_token);
+			verifier.allow_algorithm(jwt::algorithm::hs256(key));
+		}
+		if (key_type == "ES256") {
+			// Get curve parameter
+			auto crv{jwk.get_jwk_claim("crv").as_string()};
+
+			// Get x coordinate parameter
+			auto x{jwk.get_jwk_claim("x").as_string()};
+
+			// Get y coordinate parameter
+			auto y{jwk.get_jwk_claim("y").as_string()};
+
+			logging::error("{}: Unable to use ES256, no helper func :'(", __func__);
+			// verifier.allow_algorithm(jwt::algorithm::es256(jwt::helper::create_public_key_from_ec_components(crv, x, y)));
 		}
 
-		return std::nullopt;
+		try {
+			verifier.verify(decoded_token);
+		}
+		catch (const jwt::error::token_verification_exception& e) {
+			return std::nullopt;
+		}
+
+		return decoded_token.get_payload_json();
 	}
 	
 	auto resolve_client_identity(const request_type& _req) -> client_identity_resolution_result
@@ -527,7 +599,7 @@ namespace irods::http
 				}
 				// Otherwise, try parsing as a JWT access token
 				else {
-					auto possible_json_res{validate_using_local_validation()};
+					auto possible_json_res{validate_using_local_validation(bearer_token)};
 
 					if (!possible_json_res) {
 						return {.response = fail(status_type::unauthorized)};
