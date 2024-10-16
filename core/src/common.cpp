@@ -443,20 +443,14 @@ namespace irods::http
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
 	/// \returns A JWT if the token can be validated. Otherwise, an empty std::optional is returned
+	///
+	/// \todo Handle encrypted tokens. MUST reject unencrypted tokens if encryption was negotiated at registration.
+	/// \date 2024-10-16 jwt-cpp does not support encrypted tokens as of current
 	auto validate_using_local_validation(std::string _thing) -> std::optional<nlohmann::json> {
 		namespace logging = irods::http::log;
 
 		// Decode the token
 		auto decoded_token{jwt::decode<jwt::traits::nlohmann_json>(_thing)};
-
-		// Validate 'typ' is 'at+jwt' or 'application/at+jwt', reject all others
-
-		// TODO: Handle encrypted tokens
-		// MUST reject unencrypted tokens if encryption was negotiated at registration
-		// jwt-cpp does not support 
-
-		// Verify 'aud' contains identifier we expect (ourselves)
-		// TODO: Check Security Best Practices for additional details...
 
 		// Build up the JWKs
 		static auto keys{fetch_jwks_from_openid_provider()};
@@ -465,17 +459,8 @@ namespace irods::http
 		// Get the JWK the access token was signed with
 		auto jwk{jwks.get_jwk(decoded_token.get_key_id())};
 
-		// Use the 'alg' specified in the access token
-		auto key_type{decoded_token.get_header_claim("alg").as_string()};
-		logging::trace("{}: Extracted [alg] having [{}].", __func__, key_type);
-
-		// Reject 'alg' type of 'none'
-		if (key_type == "none") {
-			logging::error("{}: Access Token with [alg] of type [none] is not supported.", __func__);
-			return std::nullopt;
-		}
-
 		// Manually verify 'typ' matches what is specified in RFC 9068
+		// Validate 'typ' is 'at+jwt' or 'application/at+jwt', reject all others
 		auto token_type{decoded_token.get_header_claim("typ").as_string()};
 		if (!(token_type == "at+jwk" || token_type == "application/at+jwk")) {
 			logging::error("{}: Access Token with [typ] of type [{}] is not supported.", __func__, token_type);
@@ -485,8 +470,10 @@ namespace irods::http
 		// Begin building up the JWT verifier...
 		auto verifier{
 			jwt::verify<jwt::traits::nlohmann_json>()
+			// Token MUST have issuer match what is defined by the OpenID Provider
 				.with_issuer(
 					irods::http::globals::oidc_endpoint_configuration().at("issuer").get_ref<const std::string&>())
+			// 'aud' MUST contain identifier we expect (ourselves)
 				.with_audience(
 					irods::http::globals::oidc_configuration().at("client_id").get_ref<const std::string&>())};
 
@@ -502,61 +489,75 @@ namespace irods::http
 		// optional, it's probably best to avoid this? Though we can still use this...
 		if (!x5c.empty()) {
 			logging::trace("{}: Don't quite follow what [x5c] is still, but we'll add it to validation... [{}]", __func__, x5c);
-			verifier.allow_algorithm(jwt::algorithm::rs256(jwt::helper::convert_base64_der_to_pem(x5c)));
+			// verifier.allow_algorithm(jwt::algorithm::rs256(jwt::helper::convert_base64_der_to_pem(x5c)));
 		} // fetch content
 
 		// TODO: Refactor into separate function, taking verifier, jwk, token(?) as parameter, returning verifier(?)
 		// Details of the specific algoritms are defined by RFC 7518 (JWA)
-		if (key_type == "RS256") {
-			logging::trace("{}: Detected [RS256], attempting extraction of attributes from JWK...", __func__);
-
-			// Get modulus parameter (JWA)
-			auto mod{jwk.get_jwk_claim("n").as_string()};
-
-			// Get exponent parameter (JWA)
-			auto exp{jwk.get_jwk_claim("e").as_string()};
-
-			logging::trace("{}: Extracted modulus [{}], exponent [{}].", __func__, mod, exp);
-
-			// Add verification algorithm
-			logging::error("{}: Unable to use RSA256, no helper func :'(", __func__);
-			// return std::nullopt;
-			// verifier.allow_algorithm(jwt::algorithm::rs256(jwt::helper::create_public_key_from_rsa_components(mod, exp)));
-		}
-		if (key_type == "HS256") {
-			logging::trace("{}: Detected [HS256], attempting extraction of attributes from JWK...", __func__);
-
-			// Get key value parameter
-			auto key{jwk.get_jwk_claim("k").as_string()};
-
-			logging::trace("{}: Extracted key value [{}].", __func__, key);
-
-			verifier.allow_algorithm(jwt::algorithm::hs256(key));
-		}
-		if (key_type == "ES256") {
-			logging::trace("{}: Detected [ES256], attempting extraction of attributes from JWK...", __func__);
-
-			// Get curve parameter
-			auto crv{jwk.get_jwk_claim("crv").as_string()};
-
-			// Get x coordinate parameter
-			auto x{jwk.get_jwk_claim("x").as_string()};
-
-			// Get y coordinate parameter
-			auto y{jwk.get_jwk_claim("y").as_string()};
-
-			logging::trace("{}: Extracted curve [{}], x [{}], y [{}].", __func__, crv, x, y);
-
-			logging::error("{}: Unable to use ES256, no helper func :'(", __func__);
-			// return std::nullopt;
-			// verifier.allow_algorithm(jwt::algorithm::es256(jwt::helper::create_public_key_from_ec_components(crv, x, y)));
-		}
-
 		try {
-			verifier.verify(decoded_token);
+			// Use the 'alg' specified in the access token
+			auto key_type{decoded_token.get_header_claim("alg").as_string()};
+			logging::trace("{}: Extracted [alg] having [{}].", __func__, key_type);
+
+			// Reject 'alg' type of 'none'
+			if (key_type == "none") {
+				logging::error("{}: Access Token with [alg] of type [none] is not supported.", __func__);
+				return std::nullopt;
+			}
+			if (key_type == "RS256") {
+				logging::trace("{}: Detected [RS256], attempting extraction of attributes from JWK...", __func__);
+
+				// Get modulus parameter (JWA)
+				auto mod{jwk.get_jwk_claim("n").as_string()};
+
+				// Get exponent parameter (JWA)
+				auto exp{jwk.get_jwk_claim("e").as_string()};
+
+				// Add verification algorithm
+				verifier.allow_algorithm(jwt::algorithm::rs256(jwt::helper::create_public_key_from_rsa_components(mod, exp)));
+			}
+			if (key_type == "HS256") {
+				logging::trace("{}: Detected [HS256], attempting extraction of attributes from JWK...", __func__);
+
+				// Get key value parameter (JWA)
+				auto key{jwk.get_jwk_claim("k").as_string()};
+
+				// Add verification algorithm
+				verifier.allow_algorithm(jwt::algorithm::hs256(key));
+			}
+			if (key_type == "ES256") {
+				logging::trace("{}: Detected [ES256], attempting extraction of attributes from JWK...", __func__);
+
+				// Get curve parameter (JWA)
+				auto crv{jwk.get_jwk_claim("crv").as_string()};
+
+				// Get x coordinate parameter (JWA)
+				auto x{jwk.get_jwk_claim("x").as_string()};
+
+				// Get y coordinate parameter (JWA)
+				auto y{jwk.get_jwk_claim("y").as_string()};
+
+				// Add verification algorithm
+				verifier.allow_algorithm(jwt::algorithm::es256(jwt::helper::create_public_key_from_ec_components(crv, x, y)));
+			}
 		}
-		catch (const jwt::error::token_verification_exception& e) {
-			logging::error("{}: Token verification failed [{}].", __func__, e.what());
+		// Handle missing 'alg' in jwt
+		catch (const jwt::error::claim_not_present_exception& e) {
+			logging::error("{}: Invalid jwt [{}]", __func__, e.what());
+			return std::nullopt;
+		}
+		// Handles invalid jwk claim access
+		catch (const std::runtime_error& e) {
+			logging::error("{}: Invalid claim [{}]", __func__, e.what());
+			return std::nullopt;
+		}
+
+		// Attempt token validation
+		std::error_code ec;
+		verifier.verify(decoded_token, ec);
+
+		if (ec) {
+			logging::error("{}: Token verification failed [{}].", __func__, ec.message());
 			return std::nullopt;
 		}
 
