@@ -477,21 +477,6 @@ namespace irods::http
 				.with_audience(
 					irods::http::globals::oidc_configuration().at("client_id").get_ref<const std::string&>())};
 
-		// Get values for x5c
-		auto x5c{jwk.get_x5c_key_value()};
-
-		// As far as I know, the x5c is optional and NOT specified in
-		// RFC 9068. However, I will leave here just in case this may be of use
-		// later (think OAuth security best practices)
-		//
-		// More details: I think that this is actually supposed to match 'alg', it's just
-		// provided in a different format and can be 'chained'. Given that this param is
-		// optional, it's probably best to avoid this? Though we can still use this...
-		if (!x5c.empty()) {
-			logging::trace("{}: Don't quite follow what [x5c] is still, but we'll add it to validation... [{}]", __func__, x5c);
-			// verifier.allow_algorithm(jwt::algorithm::rs256(jwt::helper::convert_base64_der_to_pem(x5c)));
-		} // fetch content
-
 		// TODO: Refactor into separate function, taking verifier, jwk, token(?) as parameter, returning verifier(?)
 		// Details of the specific algoritms are defined by RFC 7518 (JWA)
 		try {
