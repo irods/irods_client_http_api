@@ -169,6 +169,8 @@ namespace irods::http
 
 	auto map_json_to_user(const nlohmann::json& _json) -> std::optional<std::string>;
 
+	auto validate_using_local_validation(std::string _thing) -> std::optional<nlohmann::json>;
+
 	auto resolve_client_identity(const request_type& _req) -> client_identity_resolution_result;
 
 	auto execute_operation(

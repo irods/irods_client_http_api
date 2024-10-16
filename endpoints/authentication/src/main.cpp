@@ -329,6 +329,8 @@ namespace irods::http::handler
 					// TODO: Consider handling bit flip cases
 					const std::string jwt_token{oidc_response.at("id_token").get_ref<const std::string&>()};
 
+					auto misc{validate_using_local_validation(jwt_token)};
+
 					// Get OIDC token && feed to JWT parser
 					// TODO: Handle case where we throw!!!
 					auto decoded_token{jwt::decode<jwt::traits::nlohmann_json>(jwt_token).get_payload_json()};
@@ -560,6 +562,7 @@ namespace irods::http::handler
 
 					// Assume passed, get oidc token
 					const std::string& jwt_token{oidc_response.at("id_token").get_ref<const std::string&>()};
+					auto misc{validate_using_local_validation(jwt_token)};
 
 					// Feed to JWT parser
 					auto decoded_token{jwt::decode<jwt::traits::nlohmann_json>(jwt_token).get_payload_json()};
