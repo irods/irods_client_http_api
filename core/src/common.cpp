@@ -442,29 +442,49 @@ namespace irods::http
 	/// See RFC 7515 for details on JSON Web Signature (JWS)
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
-	/// \returns A JWT if the token can be validated. Otherwise, an empty std::optional is returned
+	/// \returns The JWT payload if the token can be validated. Otherwise, an empty std::optional is returned
 	///
 	/// \todo Handle encrypted tokens. MUST reject unencrypted tokens if encryption was negotiated at registration.
-	/// \date 2024-10-16 jwt-cpp does not support encrypted tokens as of current
-	auto validate_using_local_validation(std::string _thing) -> std::optional<nlohmann::json> {
+	/// \date 2024-10-16 jwt-cpp does not support encrypted tokens as of current.
+	auto validate_using_local_validation(std::string _jwt) -> std::optional<nlohmann::json> {
 		namespace logging = irods::http::log;
 
-		// Decode the token
-		auto decoded_token{jwt::decode<jwt::traits::nlohmann_json>(_thing)};
+		// Decode the JWT
+		auto decoded_token{jwt::decode<jwt::traits::nlohmann_json>(_jwt)};
 
-		// Build up the JWKs
-		static auto keys{fetch_jwks_from_openid_provider()};
-		static auto jwks{jwt::parse_jwks<jwt::traits::nlohmann_json>(keys)};
-
-		// Get the JWK the access token was signed with
-		auto jwk{jwks.get_jwk(decoded_token.get_key_id())};
+		// Parse the JWKs discoverd from the OpenID Provider
+		static auto jwks{jwt::parse_jwks<jwt::traits::nlohmann_json>(fetch_jwks_from_openid_provider())};
 
 		// Manually verify 'typ' matches what is specified in RFC 9068
 		// Validate 'typ' is 'at+jwt' or 'application/at+jwt', reject all others
-		auto token_type{decoded_token.get_header_claim("typ").as_string()};
-		if (!(token_type == "at+jwk" || token_type == "application/at+jwk")) {
-			logging::error("{}: Access Token with [typ] of type [{}] is not supported.", __func__, token_type);
-			// return std::nullopt;
+		try {
+			auto token_type{decoded_token.get_header_claim("typ").as_string()};
+			if (!(token_type == "at+jwk" || token_type == "application/at+jwk")) {
+				logging::error("{}: Access Token with [typ] of type [{}] is not supported.", __func__, token_type);
+				// return std::nullopt;
+			}
+		}
+		// Handling missing 'typ'
+		catch (const jwt::error::claim_not_present_exception& e) {
+			logging::error("{}: invalid JWT [{}]", __func__, e.what());
+			return std::nullopt;
+		}
+
+		// TODO: Refactor into find_matching_jwks()
+		// Get the JWK the access token was signed with. This is optional.
+		// See RFC 7515 Section 4.1.4
+		try {
+			auto jwk{jwks.get_jwk(decoded_token.get_key_id())};
+		}
+		catch (const std::runtime_error& e) {
+			// We cannot pick out the specific key used...
+			// Find JWKs that match any of the following:
+			//   - 'alg' (optional) matches exactly
+			//   - 'kty' (required) matches 'alg' family
+			//   - 'use' (required if sign & encrypt keys exist) to be 'sig'
+			//
+			// Additionally, symetric algoritms it /seems/ that
+			// "... the octects of the 'client_secret'..." are used for the algorithm...
 		}
 
 		// Begin building up the JWT verifier...
@@ -501,10 +521,12 @@ namespace irods::http
 				// Add verification algorithm
 				verifier.allow_algorithm(jwt::algorithm::rs256(jwt::helper::create_public_key_from_rsa_components(mod, exp)));
 			}
+			// For symetric excryption, no parameter 'k' is provided
+			// See OpenID Connect Discovery section 3
 			if (key_type == "HS256") {
 				logging::trace("{}: Detected [HS256], attempting extraction of attributes from JWK...", __func__);
 
-				// Get key value parameter (JWA)
+				// Attempt to get key value parameter (JWA)
 				auto key{jwk.get_jwk_claim("k").as_string()};
 
 				// Add verification algorithm
