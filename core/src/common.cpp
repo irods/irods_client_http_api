@@ -367,7 +367,8 @@ namespace irods::http
 	/// Validates an OAuth 2.0 Access Token using the Introspection Endpoint
 	/// See RFC 7662 for more details
 	///
-	/// \returns 
+	/// \returns An optional containing a nlohmann::json object if verification was successful. Otherwise,
+	///          an empty optional is returned.
 	auto validate_using_introspection_endpoint(std::string _bearer_token) -> std::optional<nlohmann::json> {
 		namespace logging = irods::http::log;
 
@@ -388,10 +389,9 @@ namespace irods::http
 	/// Fetches JWKs from the location specified by the OpenID Provider
 	///
 	/// See OpenID Connect Discovery 1.0 Section 3 for info on jwks_uri
-	///
 	/// See RFC 7517 for more information on JSON Web Key (JWK)
 	///
-	/// \returns ...
+	/// \returns A std::string represting the JWKs from the OpenID Provider
 	///
 	/// \todo Stash the results from this function, only allow to run once.
 	auto fetch_jwks_from_openid_provider() -> std::string {
@@ -435,12 +435,121 @@ namespace irods::http
 		// JSONize response
 		return res.body();
 	}
+
+	/// Adds the specified algorithm \p _alg to the verifier \p _verifier, using the additional informaiton provided by the JWK \p _jwk.
+	///
+	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
+	///
+	/// \param[in,out] _verifier The jwt::verifier to add additional verification algorithms to.
+	/// \param[in]     _jwk      The JWK containing the required JWA information.
+	/// \param[in]     _alg      The sigining algorithm requested by the signed JWT.
+	///
+	/// \todo Should this be separated out by algorithm familiy?
+	auto add_alg_from_jwk(jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier, const jwt::jwk<jwt::traits::nlohmann_json>& _jwk, std::string_view _alg) -> void {
+		namespace logging = irods::http::log;
+
+		if (_alg == "RS256") {
+			logging::trace("{}: Detected [RS256], attempting extraction of attributes from JWK...", __func__);
+
+			// Get modulus parameter (JWA)
+			auto mod{_jwk.get_jwk_claim("n").as_string()};
+
+			// Get exponent parameter (JWA)
+			auto exp{_jwk.get_jwk_claim("e").as_string()};
+
+			// Add verification algorithm
+			_verifier.allow_algorithm(jwt::algorithm::rs256(jwt::helper::create_public_key_from_rsa_components(mod, exp)));
+		}
+		// For symetric excryption, no parameter 'k' is provided
+		// See OpenID Connect Discovery section 3
+		if (_alg == "HS256") {
+			logging::trace("{}: Detected [HS256], attempting extraction of attributes from JWK...", __func__);
+
+			// Attempt to get key value parameter (JWA)
+			auto key{_jwk.get_jwk_claim("k").as_string()};
+
+			// Add verification algorithm
+			_verifier.allow_algorithm(jwt::algorithm::hs256(key));
+		}
+		if (_alg == "ES256") {
+			logging::trace("{}: Detected [ES256], attempting extraction of attributes from JWK...", __func__);
+
+			// Get curve parameter (JWA)
+			auto crv{_jwk.get_jwk_claim("crv").as_string()};
+
+			// Get x coordinate parameter (JWA)
+			auto x{_jwk.get_jwk_claim("x").as_string()};
+
+			// Get y coordinate parameter (JWA)
+			auto y{_jwk.get_jwk_claim("y").as_string()};
+
+			// Add verification algorithm
+			_verifier.allow_algorithm(jwt::algorithm::es256(jwt::helper::create_public_key_from_ec_components(crv, x, y)));
+		}
+	}
+
+	/// Bleh blah
+	///
+	/// \returns A refernce to the provided jwt::verifier, allowing for chaining.
+	auto add_algorithms_to_verifier(jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier, const jwt::jwks<jwt::traits::nlohmann_json>& _jwks, std::string_view _alg) -> jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& {
+		namespace logging = irods::http::log;
+
+		// Get the JWK the access token was signed with. This is optional.
+		// See RFC 7515 Section 4.1.4
+		try {
+			auto jwk{_jwks.get_jwk(decoded_token.get_key_id())};
+			add_alg_from_jwk(_verifier, jwk, _alg);
+		}
+		catch (const std::runtime_error& e) {
+			// We cannot pick out the specific key used...
+			// Find JWKs that match any of the following:
+			//   - 'alg' (optional) matches exactly
+			//   - 'kty' (required) matches 'alg' family [EC,RSA,oct]
+			//   - 'use' (required if sign & encrypt keys exist) to be 'sig'
+			//
+			// Additionally, symetric algoritms it /seems/ that
+			// "... the octects of the 'client_secret'..." are used for the algorithm...
+			const auto algorithm_family{_alg.substr(0,2)};
+			std::string search_string;
+
+			// RSA family
+			if (algorithm_family == "RS") {
+				search_string = "RSA";
+			}
+			// EC family
+			else if (algorithm_family == "ES") {
+				search_string = "EC";
+			}
+			// Symmetric algo
+			else if (algorithm_family == "HS") {
+				search_string = "oct";
+			}
+
+			// Go through entire key set
+			std::for_each(std::cbegin(_jwks), std::cend(_jwks), [&_verifier, &_alg, &search_string] (const auto& _jwk) -> void {
+				try {
+					if (auto key_type{_jwk.get_jwk_claim("kty").as_string()}; key_type == search_string) {
+						add_alg_from_jwk(_verifier, _jwk, _alg);
+					}
+				}
+				catch (const std::runtime_error& e) {
+					logging::error("{}: Invalid key [{}]", __func__, e.what());
+					return;
+				}
+			});
+		}
+
+		// Allow for chaining
+		return _verifier;
+	}
 	
 	/// Validates an OAuth 2.0 Access Token using
 	///
 	/// See RFC 9068 for more details on JWT for OAuth 2.0
 	/// See RFC 7515 for details on JSON Web Signature (JWS)
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
+	///
+	/// \param[in] _jwt A std::string represeting the JWT to verify.
 	///
 	/// \returns The JWT payload if the token can be validated. Otherwise, an empty std::optional is returned
 	///
@@ -470,23 +579,6 @@ namespace irods::http
 			return std::nullopt;
 		}
 
-		// TODO: Refactor into find_matching_jwks()
-		// Get the JWK the access token was signed with. This is optional.
-		// See RFC 7515 Section 4.1.4
-		try {
-			auto jwk{jwks.get_jwk(decoded_token.get_key_id())};
-		}
-		catch (const std::runtime_error& e) {
-			// We cannot pick out the specific key used...
-			// Find JWKs that match any of the following:
-			//   - 'alg' (optional) matches exactly
-			//   - 'kty' (required) matches 'alg' family
-			//   - 'use' (required if sign & encrypt keys exist) to be 'sig'
-			//
-			// Additionally, symetric algoritms it /seems/ that
-			// "... the octects of the 'client_secret'..." are used for the algorithm...
-		}
-
 		// Begin building up the JWT verifier...
 		auto verifier{
 			jwt::verify<jwt::traits::nlohmann_json>()
@@ -502,6 +594,7 @@ namespace irods::http
 		try {
 			// Use the 'alg' specified in the access token
 			auto key_type{decoded_token.get_header_claim("alg").as_string()};
+			add_algorithms_to_verifier(verifier, jwks, key_type);
 			logging::trace("{}: Extracted [alg] having [{}].", __func__, key_type);
 
 			// Reject 'alg' type of 'none'
@@ -509,53 +602,10 @@ namespace irods::http
 				logging::error("{}: Access Token with [alg] of type [none] is not supported.", __func__);
 				return std::nullopt;
 			}
-			if (key_type == "RS256") {
-				logging::trace("{}: Detected [RS256], attempting extraction of attributes from JWK...", __func__);
-
-				// Get modulus parameter (JWA)
-				auto mod{jwk.get_jwk_claim("n").as_string()};
-
-				// Get exponent parameter (JWA)
-				auto exp{jwk.get_jwk_claim("e").as_string()};
-
-				// Add verification algorithm
-				verifier.allow_algorithm(jwt::algorithm::rs256(jwt::helper::create_public_key_from_rsa_components(mod, exp)));
-			}
-			// For symetric excryption, no parameter 'k' is provided
-			// See OpenID Connect Discovery section 3
-			if (key_type == "HS256") {
-				logging::trace("{}: Detected [HS256], attempting extraction of attributes from JWK...", __func__);
-
-				// Attempt to get key value parameter (JWA)
-				auto key{jwk.get_jwk_claim("k").as_string()};
-
-				// Add verification algorithm
-				verifier.allow_algorithm(jwt::algorithm::hs256(key));
-			}
-			if (key_type == "ES256") {
-				logging::trace("{}: Detected [ES256], attempting extraction of attributes from JWK...", __func__);
-
-				// Get curve parameter (JWA)
-				auto crv{jwk.get_jwk_claim("crv").as_string()};
-
-				// Get x coordinate parameter (JWA)
-				auto x{jwk.get_jwk_claim("x").as_string()};
-
-				// Get y coordinate parameter (JWA)
-				auto y{jwk.get_jwk_claim("y").as_string()};
-
-				// Add verification algorithm
-				verifier.allow_algorithm(jwt::algorithm::es256(jwt::helper::create_public_key_from_ec_components(crv, x, y)));
-			}
 		}
 		// Handle missing 'alg' in jwt
 		catch (const jwt::error::claim_not_present_exception& e) {
 			logging::error("{}: Invalid jwt [{}]", __func__, e.what());
-			return std::nullopt;
-		}
-		// Handles invalid jwk claim access
-		catch (const std::runtime_error& e) {
-			logging::error("{}: Invalid claim [{}]", __func__, e.what());
 			return std::nullopt;
 		}
 
