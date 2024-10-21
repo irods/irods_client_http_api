@@ -451,10 +451,10 @@ namespace irods::http
 		if (_alg == "RS256") {
 			logging::trace("{}: Detected [RS256], attempting extraction of attributes from JWK...", __func__);
 
-			// Get modulus parameter (JWA)
+			// Get modulus parameter (JWA Section 6.3.1)
 			auto mod{_jwk.get_jwk_claim("n").as_string()};
 
-			// Get exponent parameter (JWA)
+			// Get exponent parameter (JWA Section 6.3.1)
 			auto exp{_jwk.get_jwk_claim("e").as_string()};
 
 			// Add verification algorithm
@@ -465,7 +465,7 @@ namespace irods::http
 		if (_alg == "HS256") {
 			logging::trace("{}: Detected [HS256], attempting extraction of attributes from JWK...", __func__);
 
-			// Attempt to get key value parameter (JWA)
+			// Attempt to get key value parameter (JWA Section 6.4)
 			auto key{_jwk.get_jwk_claim("k").as_string()};
 
 			// Add verification algorithm
@@ -474,13 +474,14 @@ namespace irods::http
 		if (_alg == "ES256") {
 			logging::trace("{}: Detected [ES256], attempting extraction of attributes from JWK...", __func__);
 
-			// Get curve parameter (JWA)
-			auto crv{_jwk.get_jwk_claim("crv").as_string()};
+			// Get curve parameter (JWA Section 6.2.1)
+			auto crv{_jwk.get_curve()};
 
-			// Get x coordinate parameter (JWA)
+			// Get x coordinate parameter (JWA Section 6.2.1)
 			auto x{_jwk.get_jwk_claim("x").as_string()};
 
-			// Get y coordinate parameter (JWA)
+			// Get y coordinate parameter (JWA Section 6.2.1)
+			// MUST be present if 'crv' is 'P-256', 'P-384', or 'P-521' (JWA Section 6.2.1)
 			auto y{_jwk.get_jwk_claim("y").as_string()};
 
 			// Add verification algorithm
@@ -489,6 +490,8 @@ namespace irods::http
 	}
 
 	/// Bleh blah
+	///
+	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
 	/// \returns A refernce to the provided jwt::verifier, allowing for chaining.
 	auto add_algorithms_to_verifier(jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier, const jwt::jwks<jwt::traits::nlohmann_json>& _jwks, std::string_view _alg) -> jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& {
@@ -509,26 +512,36 @@ namespace irods::http
 			//
 			// Additionally, symetric algoritms it /seems/ that
 			// "... the octects of the 'client_secret'..." are used for the algorithm...
+
+			// The first two characters of '_alg' should give us
+			// enough information to get the algorithm 'family'
 			const auto algorithm_family{_alg.substr(0,2)};
+
+			// 'kty' string to search for in JWK
+			// The only valid values are 'EC', 'RSA', and 'oct'
+			// See (JWA Section 6.1) for the table of valid values
 			std::string search_string;
 
-			// RSA family
+			// RSA family (JWA Section 3.1)
 			if (algorithm_family == "RS") {
+				// 'kty' string for RSA (JWA Section 6.1)
 				search_string = "RSA";
 			}
-			// EC family
+			// EC family (JWA Section 3.1)
 			else if (algorithm_family == "ES") {
+				// 'kty' string for Elliptic Curve (JWA Section 6.1)
 				search_string = "EC";
 			}
-			// Symmetric algo
+			// Symmetric algo (JWA Section 3.1)
 			else if (algorithm_family == "HS") {
+				// 'kty' string for symmetric keys (JWA Section 6.1)
 				search_string = "oct";
 			}
 
 			// Go through entire key set
 			std::for_each(std::cbegin(_jwks), std::cend(_jwks), [&_verifier, &_alg, &search_string] (const auto& _jwk) -> void {
 				try {
-					if (auto key_type{_jwk.get_jwk_claim("kty").as_string()}; key_type == search_string) {
+					if (auto key_type{_jwk.get_key_type()}; key_type == search_string) {
 						add_alg_from_jwk(_verifier, _jwk, _alg);
 					}
 				}
@@ -564,17 +577,19 @@ namespace irods::http
 		// Parse the JWKs discoverd from the OpenID Provider
 		static auto jwks{jwt::parse_jwks<jwt::traits::nlohmann_json>(fetch_jwks_from_openid_provider())};
 
-		// Manually verify 'typ' matches what is specified in RFC 9068
-		// Validate 'typ' is 'at+jwt' or 'application/at+jwt', reject all others
 		try {
-			auto token_type{decoded_token.get_header_claim("typ").as_string()};
-			if (!(token_type == "at+jwk" || token_type == "application/at+jwk")) {
+			// 'typ' is case insensitive
+			auto token_type{boost::to_lower_copy<std::string>(decoded_token.get_type())};
+
+			// Manually verify 'typ' matches what is specified in RFC 9068
+			// Validate 'typ' is 'at+jwt' or 'application/at+jwt', reject all others
+			if (!(token_type == "at+jwt" || token_type == "application/at+jwt")) {
 				logging::error("{}: Access Token with [typ] of type [{}] is not supported.", __func__, token_type);
 				// return std::nullopt;
 			}
 		}
 		// Handling missing 'typ'
-		catch (const jwt::error::claim_not_present_exception& e) {
+		catch (const std::runtime_error& e) {
 			logging::error("{}: invalid JWT [{}]", __func__, e.what());
 			return std::nullopt;
 		}
@@ -593,8 +608,7 @@ namespace irods::http
 		// Details of the specific algoritms are defined by RFC 7518 (JWA)
 		try {
 			// Use the 'alg' specified in the access token
-			auto key_type{decoded_token.get_header_claim("alg").as_string()};
-			add_algorithms_to_verifier(verifier, jwks, key_type);
+			auto key_type{decoded_token.get_algorithm()};
 			logging::trace("{}: Extracted [alg] having [{}].", __func__, key_type);
 
 			// Reject 'alg' type of 'none'
@@ -602,9 +616,11 @@ namespace irods::http
 				logging::error("{}: Access Token with [alg] of type [none] is not supported.", __func__);
 				return std::nullopt;
 			}
+
+			add_algorithms_to_verifier(verifier, jwks, key_type);
 		}
 		// Handle missing 'alg' in jwt
-		catch (const jwt::error::claim_not_present_exception& e) {
+		catch (const std::runtime_error& e) {
 			logging::error("{}: Invalid jwt [{}]", __func__, e.what());
 			return std::nullopt;
 		}
