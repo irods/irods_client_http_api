@@ -489,68 +489,95 @@ namespace irods::http
 		}
 	}
 
-	/// Bleh blah
+	/// Adds verification algorithm(s) to the \p _verifier based on either the given 'kid' or algorthims matching
+	/// the family of the desired algorithm \p _alg.
 	///
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
-	/// \returns A refernce to the provided jwt::verifier, allowing for chaining.
+	/// \param[in,out] _verifier The jwt::verifier to add additional verification algorithms to.
+	/// \param[in]     _jwks     The JWKs to search through.
+	/// \param[in]     _alg      The sigining algorithm requested by the signed JWT.
+	///
+	/// \returns A refernce to the provided jwt::verifier, \p _verifier, allowing for chaining.
 	auto add_algorithms_to_verifier(jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier, const jwt::jwks<jwt::traits::nlohmann_json>& _jwks, std::string_view _alg) -> jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& {
 		namespace logging = irods::http::log;
 
 		// Get the JWK the access token was signed with. This is optional.
 		// See RFC 7515 Section 4.1.4
-		try {
-			auto jwk{_jwks.get_jwk(decoded_token.get_key_id())};
-			add_alg_from_jwk(_verifier, jwk, _alg);
+		if (decoded_token.has_key_id()) {
+			auto key_id{decoded_token.get_key_id()};
+			if (_jwks.has_jwk(key_id)) {
+				auto jwk{_jwks.get_jwk(key_id)};
+				add_alg_from_jwk(_verifier, jwk, _alg);
+
+				return _verifier;
+			}
+			logging::warn("{}: Could not find the desired [kid] in the JWKs list.", __func__);
 		}
-		catch (const std::runtime_error& e) {
-			// We cannot pick out the specific key used...
-			// Find JWKs that match any of the following:
-			//   - 'alg' (optional) matches exactly
-			//   - 'kty' (required) matches 'alg' family [EC,RSA,oct]
-			//   - 'use' (required if sign & encrypt keys exist) to be 'sig'
-			//
-			// Additionally, symetric algoritms it /seems/ that
-			// "... the octects of the 'client_secret'..." are used for the algorithm...
+		// We cannot pick out the specific key used, go through entire list of JWKs
+		// Additionally, symetric algoritms it /seems/ that
+		// "... the octects of the 'client_secret'..." are used for the algorithm...
 
-			// The first two characters of '_alg' should give us
-			// enough information to get the algorithm 'family'
-			const auto algorithm_family{_alg.substr(0,2)};
+		// The first two characters of '_alg' should give us
+		// enough information to get the algorithm 'family'
+		const auto algorithm_family{_alg.substr(0,2)};
 
-			// 'kty' string to search for in JWK
-			// The only valid values are 'EC', 'RSA', and 'oct'
-			// See (JWA Section 6.1) for the table of valid values
-			std::string search_string;
+		// 'kty' string to search for in JWK
+		// The only valid values are 'EC', 'RSA', and 'oct'
+		// See (JWA Section 6.1) for the table of valid values
+		std::string search_string;
 
-			// RSA family (JWA Section 3.1)
-			if (algorithm_family == "RS") {
-				// 'kty' string for RSA (JWA Section 6.1)
-				search_string = "RSA";
+		// RSA family (JWA Section 3.1)
+		if (algorithm_family == "RS") {
+			// 'kty' string for RSA (JWA Section 6.1)
+			search_string = "RSA";
+		}
+		// EC family (JWA Section 3.1)
+		else if (algorithm_family == "ES") {
+			// 'kty' string for Elliptic Curve (JWA Section 6.1)
+			search_string = "EC";
+		}
+		// Symmetric algo (JWA Section 3.1)
+		else if (algorithm_family == "HS") {
+			// 'kty' string for symmetric keys (JWA Section 6.1)
+			search_string = "oct";
+		}
+
+		// Go through entire key set
+		std::for_each(std::cbegin(_jwks), std::cend(_jwks), [&_verifier, &_alg, &search_string] (const auto& _jwk) -> void {
+			// Check the optional claims first
+			// Skip JWK if 'use' is not for signing 'sig'
+			if (_jwk.has_use() && _jwk.get_use() != "sig") {
+				logging::trace("{}: JWK not a signing key, ignoring.", __func__);
+				return;
 			}
-			// EC family (JWA Section 3.1)
-			else if (algorithm_family == "ES") {
-				// 'kty' string for Elliptic Curve (JWA Section 6.1)
-				search_string = "EC";
-			}
-			// Symmetric algo (JWA Section 3.1)
-			else if (algorithm_family == "HS") {
-				// 'kty' string for symmetric keys (JWA Section 6.1)
-				search_string = "oct";
-			}
 
-			// Go through entire key set
-			std::for_each(std::cbegin(_jwks), std::cend(_jwks), [&_verifier, &_alg, &search_string] (const auto& _jwk) -> void {
-				try {
-					if (auto key_type{_jwk.get_key_type()}; key_type == search_string) {
-						add_alg_from_jwk(_verifier, _jwk, _alg);
-					}
-				}
-				catch (const std::runtime_error& e) {
-					logging::error("{}: Invalid key [{}]", __func__, e.what());
+			if (_jwk.has_algorithm()) {
+				// Add the algorithm if 'alg' matches desired.
+				if (_jwk.get_algorithm() == _alg) {
+					add_alg_from_jwk(_verifier, _jwk, _alg);
 					return;
 				}
-			});
-		}
+
+				logging::trace("{}: JWK [alg] does not match JWT [alg], ignoring.", __func__);
+				return;
+			}
+
+			// Fallback to required claim
+			if (_jwk.has_key_type()) {
+				// Extract the 'kty' of the JWK, compare to desired 'kty'
+				if (_jwk.get_key_type() == search_string) {
+					add_alg_from_jwk(_verifier, _jwk, _alg);
+					return;
+				}
+
+				logging::trace("{}: JWK [kty] does not match JWT desired [kty], ignoring.", __func__);
+				return;
+			}
+
+			logging::error("{}: Invalid JWK, missing [kty] claim. Ignoring.", __func__);
+			return;
+		});
 
 		// Allow for chaining
 		return _verifier;
