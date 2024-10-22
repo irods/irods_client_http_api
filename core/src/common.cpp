@@ -604,20 +604,34 @@ namespace irods::http
 		// Parse the JWKs discoverd from the OpenID Provider
 		static auto jwks{jwt::parse_jwks<jwt::traits::nlohmann_json>(fetch_jwks_from_openid_provider())};
 
-		try {
-			// 'typ' is case insensitive
-			auto token_type{boost::to_lower_copy<std::string>(decoded_token.get_type())};
-
-			// Manually verify 'typ' matches what is specified in RFC 9068
-			// Validate 'typ' is 'at+jwt' or 'application/at+jwt', reject all others
-			if (!(token_type == "at+jwt" || token_type == "application/at+jwt")) {
-				logging::error("{}: Access Token with [typ] of type [{}] is not supported.", __func__, token_type);
-				// return std::nullopt;
-			}
-		}
 		// Handling missing 'typ'
-		catch (const std::runtime_error& e) {
-			logging::error("{}: invalid JWT [{}]", __func__, e.what());
+		if (!decoded_token.has_type()) {
+			logging::error("{}: invalid Access Token, missing [typ].", __func__);
+			return std::nullopt;
+		}
+
+		// 'typ' is case insensitive
+		auto token_type{boost::to_lower_copy<std::string>(decoded_token.get_type())};
+
+		// Manually verify 'typ' matches what is specified in RFC 9068
+		// Validate 'typ' is 'at+jwt' or 'application/at+jwt', reject all others
+		if (!(token_type == "at+jwt" || token_type == "application/at+jwt")) {
+			logging::error("{}: Access Token with [typ] of type [{}] is not supported.", __func__, token_type);
+			// return std::nullopt;
+		}
+
+		// Handle missing 'alg'
+		if (!decoded_token.has_algorithm()) {
+			logging::error("{}: Invalid Access Token, missing [alg].", __func__);
+			return std::nullopt;
+		}
+
+		// Use the 'alg' specified in the access token
+		auto alg{decoded_token.get_algorithm()};
+
+		// Reject 'alg' type of 'none'
+		if (alg == "none") {
+			logging::error("{}: Access Token with [alg] of type [none] is not supported.", __func__);
 			return std::nullopt;
 		}
 
@@ -631,26 +645,7 @@ namespace irods::http
 				.with_audience(
 					irods::http::globals::oidc_configuration().at("client_id").get_ref<const std::string&>())};
 
-		// TODO: Refactor into separate function, taking verifier, jwk, token(?) as parameter, returning verifier(?)
-		// Details of the specific algoritms are defined by RFC 7518 (JWA)
-		try {
-			// Use the 'alg' specified in the access token
-			auto key_type{decoded_token.get_algorithm()};
-			logging::trace("{}: Extracted [alg] having [{}].", __func__, key_type);
-
-			// Reject 'alg' type of 'none'
-			if (key_type == "none") {
-				logging::error("{}: Access Token with [alg] of type [none] is not supported.", __func__);
-				return std::nullopt;
-			}
-
-			add_algorithms_to_verifier(verifier, jwks, key_type);
-		}
-		// Handle missing 'alg' in jwt
-		catch (const std::runtime_error& e) {
-			logging::error("{}: Invalid jwt [{}]", __func__, e.what());
-			return std::nullopt;
-		}
+		add_algorithms_to_verifier(verifier, jwks, alg);
 
 		// Attempt token validation
 		std::error_code ec;
