@@ -598,66 +598,84 @@ namespace irods::http
 	auto validate_using_local_validation(std::string _jwt) -> std::optional<nlohmann::json> {
 		namespace logging = irods::http::log;
 
-		// Decode the JWT
-		auto decoded_token{jwt::decode<jwt::traits::nlohmann_json>(_jwt)};
+		try {
+			// Decode the JWT
+			auto decoded_token{jwt::decode<jwt::traits::nlohmann_json>(_jwt)};
 
-		// Parse the JWKs discoverd from the OpenID Provider
-		static auto jwks{jwt::parse_jwks<jwt::traits::nlohmann_json>(fetch_jwks_from_openid_provider())};
+			// Parse the JWKs discoverd from the OpenID Provider
+			static auto jwks{jwt::parse_jwks<jwt::traits::nlohmann_json>(fetch_jwks_from_openid_provider())};
 
-		// Handling missing 'typ'
-		if (!decoded_token.has_type()) {
-			logging::error("{}: invalid Access Token, missing [typ].", __func__);
-			return std::nullopt;
-		}
+			// Handling missing 'typ'
+			if (!decoded_token.has_type()) {
+				logging::error("{}: invalid Access Token, missing [typ].", __func__);
+				return std::nullopt;
+			}
 
-		// 'typ' is case insensitive
-		auto token_type{boost::to_lower_copy<std::string>(decoded_token.get_type())};
+			// 'typ' is case insensitive
+			auto token_type{boost::to_lower_copy<std::string>(decoded_token.get_type())};
 
-		// Manually verify 'typ' matches what is specified in RFC 9068
-		// Validate 'typ' is 'at+jwt' or 'application/at+jwt', reject all others
-		if (!(token_type == "at+jwt" || token_type == "application/at+jwt")) {
-			logging::error("{}: Access Token with [typ] of type [{}] is not supported.", __func__, token_type);
-			// return std::nullopt;
-		}
+			// Manually verify 'typ' matches what is specified in RFC 9068
+			// Validate 'typ' is 'at+jwt' or 'application/at+jwt', reject all others
+			if (!(token_type == "at+jwt" || token_type == "application/at+jwt")) {
+				logging::error("{}: Access Token with [typ] of type [{}] is not supported.", __func__, token_type);
+				// return std::nullopt;
+			}
 
-		// Handle missing 'alg'
-		if (!decoded_token.has_algorithm()) {
-			logging::error("{}: Invalid Access Token, missing [alg].", __func__);
-			return std::nullopt;
-		}
+			// We do not currently support JWEs
+			if (decoded_token.has_header_claim("enc")) {
+				logging::error("{}: JWE is not supported.", __func__);
+				return std::nullopt;
+			}
 
-		// Use the 'alg' specified in the access token
-		auto alg{decoded_token.get_algorithm()};
+			// Handle missing 'alg'
+			if (!decoded_token.has_algorithm()) {
+				logging::error("{}: Invalid Access Token, missing [alg].", __func__);
+				return std::nullopt;
+			}
 
-		// Reject 'alg' type of 'none'
-		if (alg == "none") {
-			logging::error("{}: Access Token with [alg] of type [none] is not supported.", __func__);
-			return std::nullopt;
-		}
+			// Use the 'alg' specified in the access token
+			auto alg{decoded_token.get_algorithm()};
 
-		// Begin building up the JWT verifier...
-		auto verifier{
-			jwt::verify<jwt::traits::nlohmann_json>()
-			// Token MUST have issuer match what is defined by the OpenID Provider
+			// Reject 'alg' type of 'none'
+			if (alg == "none") {
+				logging::error("{}: Access Token with [alg] of type [none] is not supported.", __func__);
+				return std::nullopt;
+			}
+
+			// Reject JWT with JWS 'crit'
+			if (decoded_token.has_header_claim("crit")) {
+				logging::error("{}: Access Token with unsupported [crit] claim provided: [{}].", __func__, decoded_token.get_header_claim("crit").as_string());
+				return std::nullopt;
+			}
+
+			// Begin building up the JWT verifier...
+			auto verifier{
+				jwt::verify<jwt::traits::nlohmann_json>()
+				// Token MUST have issuer match what is defined by the OpenID Provider
 				.with_issuer(
-					irods::http::globals::oidc_endpoint_configuration().at("issuer").get_ref<const std::string&>())
-			// 'aud' MUST contain identifier we expect (ourselves)
+							 irods::http::globals::oidc_endpoint_configuration().at("issuer").get_ref<const std::string&>())
+				// 'aud' MUST contain identifier we expect (ourselves)
 				.with_audience(
-					irods::http::globals::oidc_configuration().at("client_id").get_ref<const std::string&>())};
+							   irods::http::globals::oidc_configuration().at("client_id").get_ref<const std::string&>())};
 
-		add_algorithms_to_verifier(verifier, jwks, alg);
+			add_algorithms_to_verifier(verifier, jwks, alg);
 
-		// Attempt token validation
-		std::error_code ec;
-		verifier.verify(decoded_token, ec);
+			// Attempt token validation
+			std::error_code ec;
+			verifier.verify(decoded_token, ec);
 
-		if (ec) {
-			logging::error("{}: Token verification failed [{}].", __func__, ec.message());
+			if (ec) {
+				logging::error("{}: Token verification failed [{}].", __func__, ec.message());
+				return std::nullopt;
+			}
+
+			logging::trace("{}: Token verification succeeded.", __func__);
+			return decoded_token.get_payload_json();
+		}
+		catch (const std::exception& e) {
+			logging::error("{}: Unexpected exception [{}]", __func__, e.what());
 			return std::nullopt;
 		}
-
-		logging::trace("{}: Token verification succeeded.", __func__);
-		return decoded_token.get_payload_json();
 	}
 	
 	auto resolve_client_identity(const request_type& _req) -> client_identity_resolution_result
