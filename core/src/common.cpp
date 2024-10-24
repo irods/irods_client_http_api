@@ -585,7 +585,8 @@ namespace irods::http
 	
 	/// Validates an OAuth 2.0 Access Token using
 	///
-	/// See RFC 9068 for more details on JWT for OAuth 2.0
+	/// See RFC 9068 for more details on JWT for OAuth 2.0 (OJWT)
+	/// See RFC 7516 for details on JSON Web Encryption (JWE)
 	/// See RFC 7515 for details on JSON Web Signature (JWS)
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
@@ -614,20 +615,24 @@ namespace irods::http
 			// 'typ' is case insensitive
 			auto token_type{boost::to_lower_copy<std::string>(decoded_token.get_type())};
 
-			// Manually verify 'typ' matches what is specified in RFC 9068
-			// Validate 'typ' is 'at+jwt' or 'application/at+jwt', reject all others
+			// Manually verify 'typ' matches what is specified in OJWT
+			// See OJWT Section 4
 			if (!(token_type == "at+jwt" || token_type == "application/at+jwt")) {
 				logging::error("{}: Access Token with [typ] of type [{}] is not supported.", __func__, token_type);
 				// return std::nullopt;
 			}
 
+
 			// We do not currently support JWEs
+			// See JWE Section 4.1.2
 			if (decoded_token.has_header_claim("enc")) {
 				logging::error("{}: JWE is not supported.", __func__);
 				return std::nullopt;
 			}
 
+
 			// Handle missing 'alg'
+			// See JWS Section 4.1.1
 			if (!decoded_token.has_algorithm()) {
 				logging::error("{}: Invalid Access Token, missing [alg].", __func__);
 				return std::nullopt;
@@ -637,12 +642,15 @@ namespace irods::http
 			auto alg{decoded_token.get_algorithm()};
 
 			// Reject 'alg' type of 'none'
+			// See OJWT Section 4
 			if (alg == "none") {
 				logging::error("{}: Access Token with [alg] of type [none] is not supported.", __func__);
 				return std::nullopt;
 			}
 
-			// Reject JWT with JWS 'crit'
+
+			// Reject JWT with JWS 'crit', we do not support extensions using 'crit' at this moment
+			// See JWS Section 4.1.11
 			if (decoded_token.has_header_claim("crit")) {
 				logging::error("{}: Access Token with unsupported [crit] claim provided: [{}].", __func__, decoded_token.get_header_claim("crit").as_string());
 				return std::nullopt;
