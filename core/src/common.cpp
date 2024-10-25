@@ -547,8 +547,15 @@ namespace irods::http
 		std::for_each(std::cbegin(_jwks), std::cend(_jwks), [&_verifier, &_alg, &search_string] (const auto& _jwk) -> void {
 			// Check the optional claims first
 			// Skip JWK if 'use' is not for signing 'sig'
+			// See JWK Section 4.2
 			if (_jwk.has_use() && _jwk.get_use() != "sig") {
 				logging::trace("{}: JWK not a signing key, ignoring.", __func__);
+				return;
+			}
+			// JWK might have 'key_ops', try to select keys based off of this
+			// See JWK Section 4.3
+			else if (_jwk.has_key_operations() && !_jwk.get_key_operations().contains("verify")) {
+				logging::trace("{}: JWK not a key used for verification, ignoring.", __func__);
 				return;
 			}
 
@@ -627,6 +634,14 @@ namespace irods::http
 			// See JWE Section 4.1.2
 			if (decoded_token.has_header_claim("enc")) {
 				logging::error("{}: JWE is not supported.", __func__);
+				return std::nullopt;
+			}
+
+			// We do not support nested JWTs
+			// This is typically used in JWTs that are signed and then encrypted
+			// See JWT Section 5.2
+			if (decoded_token.has_content_type() && boost::to_lower_copy<std::string>(decoded_token.get_content_type()) == "jwt") {
+				logging::error("{}: Nested JWTs are not supported.", __func__);
 				return std::nullopt;
 			}
 
