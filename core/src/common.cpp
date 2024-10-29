@@ -478,29 +478,6 @@ namespace irods::http
 			}
 			return;
 		}
-		// For symetric excryption, no parameter 'k' is provided
-		// "The JWK Set MUST NOT contain private or symmetric key values."
-		// See OpenID Connect Discovery section 3
-		else if (_alg == "HS256") {
-			logging::trace("{}: Detected [HS256], attempting extraction of attributes from JWK...", __func__);
-
-			std::string key;
-
-			// TODO: Remove the following code if true!
-			// Attempt to get key value parameter (JWA Section 6.4)
-			if (_jwk.has_jwk_claim("k")) {
-				auto key{_jwk.get_jwk_claim("k").as_string()};
-			}
-			// TOOD: Test the following code!
-			// OpenID secret should be our secret
-			else if (auto secret{irods::http::globals::oidc_configuration().find("client_secret")}; secret != std::end(irods::http::globals::oidc_configuration())) {
-				key = secret->get<std::string>();
-			}
-
-			// Add verification algorithm
-			_verifier.allow_algorithm(jwt::algorithm::hs256(key));
-			return;
-		}
 		else if (algorithm_family == "ES") {
 			logging::trace("{}: Detected [ES], attempting extraction of attributes from JWK...", __func__);
 
@@ -588,8 +565,19 @@ namespace irods::http
 		}
 		// Symmetric algo (JWA Section 3.1)
 		else if (algorithm_family == "HS") {
-			// 'kty' string for symmetric keys (JWA Section 6.1)
-			search_string = "oct";
+			if (alg == "HS256") {
+				logging::trace("{}: Detected [HS256], attempting extraction of attributes from JWK...", __func__);
+
+				// OpenID secret should be our secret
+				if (auto secret{irods::http::globals::oidc_configuration().find("client_secret")}; secret != std::end(irods::http::globals::oidc_configuration())) {
+					std::string key{secret->get<std::string>()};
+					// Add verification algorithm
+					_verifier.allow_algorithm(jwt::algorithm::hs256(key));
+					return _verifier;
+				}
+
+				logging::warn("{}: No [client_secret] found.", __func__);
+			}
 		}
 
 		// Go through entire key set
