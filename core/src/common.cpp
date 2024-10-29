@@ -736,20 +736,18 @@ namespace irods::http
 			// It's possible that the admin didn't include the OIDC configuration stanza.
 			// This use-case is allowed, therefore we check for the OIDC configuration before
 			// attempting to access it. Without this logic, the server would crash.
-			const auto oidc_config_iter =
-				config.find(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"});
-			if (oidc_config_iter == std::end(config)) {
+			if (!config.contains(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"})) {
 				logging::debug("{}: No 'openid_connect' stanza found in server configuration.", __func__);
 				logging::error("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
 				return {.response = fail(status_type::unauthorized)};
 			}
 
 			// If we're running as a protected resource, assume we have a OIDC token
-			if (oidc_config_iter->at("mode").get_ref<const std::string&>() == "protected_resource") {
+			if (irods::http::globals::oidc_configuration().at("mode").get_ref<const std::string&>() == "protected_resource") {
 				nlohmann::json json_res;
 
 				// Use introspection endpoint if it exsists
-				if (auto introspection_endpoint_iter{irods::http::globals::oidc_endpoint_configuration().find(nlohmann::json::json_pointer{"/introspection_endpoint"})}; introspection_endpoint_iter != std::end(irods::http::globals::oidc_endpoint_configuration())) {
+				if (auto introspection_endpoint_iter{irods::http::globals::oidc_endpoint_configuration().find(nlohmann::json::json_pointer{"/introspection_endpoint"})}; introspection_endpoint_iter != std::end(irods::http::globals::oidc_endpoint_configuration()) && false) {
 					auto possible_json_res{validate_using_introspection_endpoint(bearer_token)};
 
 					if (!possible_json_res) {
