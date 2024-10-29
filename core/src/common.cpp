@@ -451,8 +451,8 @@ namespace irods::http
 		auto algorithm_family{_alg.substr(0,2)};
 		auto algorithm_specifics{_alg.substr(2)};
 
-		if (algorithm_family == "RS") {
-			logging::trace("{}: Detected [RS], attempting extraction of attributes from JWK...", __func__);
+		if (algorithm_family == "RS" || algorithm_family == "PS") {
+			logging::trace("{}: Detected [{}], attempting extraction of attributes from JWK...", __func__, algorithm_family);
 
 			// Get modulus parameter (JWA Section 6.3.1)
 			auto mod{_jwk.get_jwk_claim("n").as_string()};
@@ -464,17 +464,34 @@ namespace irods::http
 			auto pub_key{jwt::helper::create_public_key_from_rsa_components(mod, exp)};
 
 			// Add verification algorithm
-			if (algorithm_specifics == "256") {
-				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
-				_verifier.allow_algorithm(jwt::algorithm::rs256(pub_key));
+			if (algorithm_family == "RS") {
+				if (algorithm_specifics == "256") {
+					logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+					_verifier.allow_algorithm(jwt::algorithm::rs256(pub_key));
+				}
+				else if (algorithm_specifics == "384") {
+					logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+					_verifier.allow_algorithm(jwt::algorithm::rs384(pub_key));
+				}
+				else if (algorithm_specifics == "512") {
+					logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+					_verifier.allow_algorithm(jwt::algorithm::rs512(pub_key));
+				}
 			}
-			else if (algorithm_specifics == "384") {
-				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
-				_verifier.allow_algorithm(jwt::algorithm::rs384(pub_key));
-			}
-			else if (algorithm_specifics == "512") {
-				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
-				_verifier.allow_algorithm(jwt::algorithm::rs512(pub_key));
+			// "PS"
+			else {
+				if (algorithm_specifics == "256") {
+					logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+					_verifier.allow_algorithm(jwt::algorithm::ps256(pub_key));
+				}
+				else if (algorithm_specifics == "384") {
+					logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+					_verifier.allow_algorithm(jwt::algorithm::ps384(pub_key));
+				}
+				else if (algorithm_specifics == "512") {
+					logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+					_verifier.allow_algorithm(jwt::algorithm::ps512(pub_key));
+				}
 			}
 			return;
 		}
@@ -554,7 +571,7 @@ namespace irods::http
 		std::string search_string;
 
 		// RSA family (JWA Section 3.1)
-		if (algorithm_family == "RS") {
+		if (algorithm_family == "RS"  || algorithm_family == "PS") {
 			// 'kty' string for RSA (JWA Section 6.1)
 			search_string = "RSA";
 		}
