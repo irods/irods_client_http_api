@@ -436,7 +436,7 @@ namespace irods::http
 		return res.body();
 	}
 
-	/// Adds the specified symmetric algorithm \p _alg to the verifier \p _verifier, using the additional informaiton provided by the JWK \p _jwk.
+	/// Adds the specified symmetric algorithm \p _alg to the verifier \p _verifier, using the secrets provided in the HTTP API configuration
 	///
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
@@ -471,8 +471,10 @@ namespace irods::http
 				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
 				_verifier.allow_algorithm(jwt::algorithm::hs512(key));
 			}
+			return;
 		}
 
+		logging::warn("{}: Algorithm [{}] is not supported.", __func__, _alg);
 	}
 
 	/// Adds the specified asymmetric algorithm \p _alg to the verifier \p _verifier, using the additional informaiton provided by the JWK \p _jwk.
