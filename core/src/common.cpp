@@ -825,7 +825,7 @@ namespace irods::http
 				nlohmann::json json_res;
 
 				// Use introspection endpoint if it exists
-				if (auto introspection_endpoint_iter{irods::http::globals::oidc_endpoint_configuration().find(nlohmann::json::json_pointer{"/introspection_endpoint"})}; introspection_endpoint_iter != std::end(irods::http::globals::oidc_endpoint_configuration()) && false) {
+				if (auto introspection_endpoint_iter{irods::http::globals::oidc_endpoint_configuration().find(nlohmann::json::json_pointer{"/introspection_endpoint"})}; introspection_endpoint_iter != std::end(irods::http::globals::oidc_endpoint_configuration())) {
 					auto possible_json_res{validate_using_introspection_endpoint(bearer_token)};
 
 					if (!possible_json_res) {
