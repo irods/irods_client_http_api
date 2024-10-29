@@ -436,16 +436,53 @@ namespace irods::http
 		return res.body();
 	}
 
-	/// Adds the specified algorithm \p _alg to the verifier \p _verifier, using the additional informaiton provided by the JWK \p _jwk.
+	/// Adds the specified symmetric algorithm \p _alg to the verifier \p _verifier, using the additional informaiton provided by the JWK \p _jwk.
+	///
+	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
+	///
+	/// \param[in,out] _verifier The jwt::verifier to add additional verification algorithms to.
+	/// \param[in]     _alg      The sigining algorithm requested by the signed JWT.
+	auto add_symmetric_alg(jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier, std::string_view _alg) -> void {
+		namespace logging = irods::http::log;
+
+		auto algorithm_family{_alg.substr(0,2)};
+		auto algorithm_specifics{_alg.substr(2)};
+
+		// Extract the secret key
+		// OpenID secret should be our secret
+		std::string key;
+		if (auto realm_secret{irods::http::globals::oidc_configuration().find("realm_secret")}; realm_secret != std::end(irods::http::globals::oidc_configuration())) {
+			key = realm_secret->get<std::string>();
+		}
+		else if (auto secret{irods::http::globals::oidc_configuration().find("client_secret")}; secret != std::end(irods::http::globals::oidc_configuration())) {
+			key = secret->get<std::string>();
+		}
+
+		if (algorithm_family == "HS") {
+			if (algorithm_specifics == "256") {
+				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+				_verifier.allow_algorithm(jwt::algorithm::hs256(key));
+			}
+			else if (algorithm_specifics == "384") {
+				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+				_verifier.allow_algorithm(jwt::algorithm::hs384(key));
+			}
+			else if (algorithm_specifics == "512") {
+				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+				_verifier.allow_algorithm(jwt::algorithm::hs512(key));
+			}
+		}
+
+	}
+
+	/// Adds the specified asymmetric algorithm \p _alg to the verifier \p _verifier, using the additional informaiton provided by the JWK \p _jwk.
 	///
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
 	/// \param[in,out] _verifier The jwt::verifier to add additional verification algorithms to.
 	/// \param[in]     _jwk      The JWK containing the required JWA information.
 	/// \param[in]     _alg      The sigining algorithm requested by the signed JWT.
-	///
-	/// \todo Should this be separated out by algorithm familiy?
-	auto add_alg_from_jwk(jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier, const jwt::jwk<jwt::traits::nlohmann_json>& _jwk, std::string_view _alg) -> void {
+	auto add_asymmetric_alg_from_jwk(jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier, const jwt::jwk<jwt::traits::nlohmann_json>& _jwk, std::string_view _alg) -> void {
 		namespace logging = irods::http::log;
 
 		auto algorithm_family{_alg.substr(0,2)};
@@ -551,7 +588,7 @@ namespace irods::http
 			auto key_id{_jwt.get_key_id()};
 			if (_jwks.has_jwk(key_id)) {
 				auto jwk{_jwks.get_jwk(key_id)};
-				add_alg_from_jwk(_verifier, jwk, alg);
+				add_asymmetric_alg_from_jwk(_verifier, jwk, alg);
 
 				return _verifier;
 			}
@@ -582,19 +619,7 @@ namespace irods::http
 		}
 		// Symmetric algo (JWA Section 3.1)
 		else if (algorithm_family == "HS") {
-			if (alg == "HS256") {
-				logging::trace("{}: Detected [HS256], attempting extraction of attributes from JWK...", __func__);
-
-				// OpenID secret should be our secret
-				if (auto secret{irods::http::globals::oidc_configuration().find("client_secret")}; secret != std::end(irods::http::globals::oidc_configuration())) {
-					std::string key{secret->get<std::string>()};
-					// Add verification algorithm
-					_verifier.allow_algorithm(jwt::algorithm::hs256(key));
-					return _verifier;
-				}
-
-				logging::warn("{}: No [client_secret] found.", __func__);
-			}
+			add_symmetric_alg(_verifier, alg);
 		}
 
 		// Go through entire key set
@@ -616,7 +641,7 @@ namespace irods::http
 			if (_jwk.has_algorithm()) {
 				// Add the algorithm if 'alg' matches desired.
 				if (_jwk.get_algorithm() == alg) {
-					add_alg_from_jwk(_verifier, _jwk, alg);
+					add_asymmetric_alg_from_jwk(_verifier, _jwk, alg);
 					return;
 				}
 
@@ -628,7 +653,7 @@ namespace irods::http
 			if (_jwk.has_key_type()) {
 				// Extract the 'kty' of the JWK, compare to desired 'kty'
 				if (_jwk.get_key_type() == search_string) {
-					add_alg_from_jwk(_verifier, _jwk, alg);
+					add_asymmetric_alg_from_jwk(_verifier, _jwk, alg);
 					return;
 				}
 
