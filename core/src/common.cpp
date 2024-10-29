@@ -448,8 +448,11 @@ namespace irods::http
 	auto add_alg_from_jwk(jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier, const jwt::jwk<jwt::traits::nlohmann_json>& _jwk, std::string_view _alg) -> void {
 		namespace logging = irods::http::log;
 
-		if (_alg == "RS256") {
-			logging::trace("{}: Detected [RS256], attempting extraction of attributes from JWK...", __func__);
+		auto algorithm_family{_alg.substr(0,2)};
+		auto algorithm_specifics{_alg.substr(2)};
+
+		if (algorithm_family == "RS") {
+			logging::trace("{}: Detected [RS], attempting extraction of attributes from JWK...", __func__);
 
 			// Get modulus parameter (JWA Section 6.3.1)
 			auto mod{_jwk.get_jwk_claim("n").as_string()};
@@ -457,8 +460,22 @@ namespace irods::http
 			// Get exponent parameter (JWA Section 6.3.1)
 			auto exp{_jwk.get_jwk_claim("e").as_string()};
 
+			// Create public key
+			auto pub_key{jwt::helper::create_public_key_from_rsa_components(mod, exp)};
+
 			// Add verification algorithm
-			_verifier.allow_algorithm(jwt::algorithm::rs256(jwt::helper::create_public_key_from_rsa_components(mod, exp)));
+			if (algorithm_specifics == "256") {
+				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+				_verifier.allow_algorithm(jwt::algorithm::rs256(pub_key));
+			}
+			else if (algorithm_specifics == "384") {
+				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+				_verifier.allow_algorithm(jwt::algorithm::rs384(pub_key));
+			}
+			else if (algorithm_specifics == "512") {
+				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+				_verifier.allow_algorithm(jwt::algorithm::rs512(pub_key));
+			}
 			return;
 		}
 		// For symetric excryption, no parameter 'k' is provided
@@ -484,8 +501,8 @@ namespace irods::http
 			_verifier.allow_algorithm(jwt::algorithm::hs256(key));
 			return;
 		}
-		else if (_alg == "ES256") {
-			logging::trace("{}: Detected [ES256], attempting extraction of attributes from JWK...", __func__);
+		else if (algorithm_family == "ES") {
+			logging::trace("{}: Detected [ES], attempting extraction of attributes from JWK...", __func__);
 
 			// Get curve parameter (JWA Section 6.2.1)
 			auto crv{_jwk.get_curve()};
@@ -497,12 +514,26 @@ namespace irods::http
 			// MUST be present if 'crv' is 'P-256', 'P-384', or 'P-521' (JWA Section 6.2.1)
 			auto y{_jwk.get_jwk_claim("y").as_string()};
 
+			// Create public key
+			auto pub_key{jwt::helper::create_public_key_from_ec_components(crv, x, y)};
+
 			// Add verification algorithm
-			_verifier.allow_algorithm(jwt::algorithm::es256(jwt::helper::create_public_key_from_ec_components(crv, x, y)));
+			if (algorithm_specifics == "256") {
+				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+				_verifier.allow_algorithm(jwt::algorithm::es256(pub_key));
+			}
+			else if (algorithm_specifics == "384") {
+				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+				_verifier.allow_algorithm(jwt::algorithm::es384(pub_key));
+			}
+			else if (algorithm_specifics == "512") {
+				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
+				_verifier.allow_algorithm(jwt::algorithm::es512(pub_key));
+			}
 			return;
 		}
 
-		logging::warning("{}: Algorithm [{}] is not supported.", __func__, _alg);
+		logging::warn("{}: Algorithm [{}] is not supported.", __func__, _alg);
 	}
 
 	/// Adds verification algorithm(s) to the \p _verifier based on either the given 'kid' or algorthims matching
