@@ -622,6 +622,7 @@ namespace irods::http
 		// Symmetric algo (JWA Section 3.1)
 		else if (algorithm_family == "HS") {
 			add_symmetric_alg(_verifier, alg);
+			return _verifier;
 		}
 
 		// Go through entire key set
