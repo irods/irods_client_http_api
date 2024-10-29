@@ -459,19 +459,32 @@ namespace irods::http
 
 			// Add verification algorithm
 			_verifier.allow_algorithm(jwt::algorithm::rs256(jwt::helper::create_public_key_from_rsa_components(mod, exp)));
+			return;
 		}
 		// For symetric excryption, no parameter 'k' is provided
+		// "The JWK Set MUST NOT contain private or symmetric key values."
 		// See OpenID Connect Discovery section 3
-		if (_alg == "HS256") {
+		else if (_alg == "HS256") {
 			logging::trace("{}: Detected [HS256], attempting extraction of attributes from JWK...", __func__);
 
+			std::string key;
+
+			// TODO: Remove the following code if true!
 			// Attempt to get key value parameter (JWA Section 6.4)
-			auto key{_jwk.get_jwk_claim("k").as_string()};
+			if (_jwk.has_jwk_claim("k")) {
+				auto key{_jwk.get_jwk_claim("k").as_string()};
+			}
+			// TOOD: Test the following code!
+			// OpenID secret should be our secret
+			else if (auto secret{irods::http::globals::oidc_configuration().find("client_secret")}; secret != std::end(irods::http::globals::oidc_configuration())) {
+				key = secret->get<std::string>();
+			}
 
 			// Add verification algorithm
 			_verifier.allow_algorithm(jwt::algorithm::hs256(key));
+			return;
 		}
-		if (_alg == "ES256") {
+		else if (_alg == "ES256") {
 			logging::trace("{}: Detected [ES256], attempting extraction of attributes from JWK...", __func__);
 
 			// Get curve parameter (JWA Section 6.2.1)
@@ -486,7 +499,10 @@ namespace irods::http
 
 			// Add verification algorithm
 			_verifier.allow_algorithm(jwt::algorithm::es256(jwt::helper::create_public_key_from_ec_components(crv, x, y)));
+			return;
 		}
+
+		logging::warning("{}: Algorithm [{}] is not supported.", __func__, _alg);
 	}
 
 	/// Adds verification algorithm(s) to the \p _verifier based on either the given 'kid' or algorthims matching
@@ -496,19 +512,21 @@ namespace irods::http
 	///
 	/// \param[in,out] _verifier The jwt::verifier to add additional verification algorithms to.
 	/// \param[in]     _jwks     The JWKs to search through.
-	/// \param[in]     _alg      The sigining algorithm requested by the signed JWT.
+	/// \param[in]     _jwt      The decoded JWT that needs to be verified.
 	///
 	/// \returns A refernce to the provided jwt::verifier, \p _verifier, allowing for chaining.
-	auto add_algorithms_to_verifier(jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier, const jwt::jwks<jwt::traits::nlohmann_json>& _jwks, std::string_view _alg) -> jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& {
+	auto add_algorithms_to_verifier(jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier, const jwt::jwks<jwt::traits::nlohmann_json>& _jwks, const jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt) -> jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& {
 		namespace logging = irods::http::log;
+
+		const auto alg{_jwt.get_algorithm()};
 
 		// Get the JWK the access token was signed with. This is optional.
 		// See RFC 7515 Section 4.1.4
-		if (decoded_token.has_key_id()) {
-			auto key_id{decoded_token.get_key_id()};
+		if (_jwt.has_key_id()) {
+			auto key_id{_jwt.get_key_id()};
 			if (_jwks.has_jwk(key_id)) {
 				auto jwk{_jwks.get_jwk(key_id)};
-				add_alg_from_jwk(_verifier, jwk, _alg);
+				add_alg_from_jwk(_verifier, jwk, alg);
 
 				return _verifier;
 			}
@@ -520,7 +538,7 @@ namespace irods::http
 
 		// The first two characters of '_alg' should give us
 		// enough information to get the algorithm 'family'
-		const auto algorithm_family{_alg.substr(0,2)};
+		const auto algorithm_family{alg.substr(0,2)};
 
 		// 'kty' string to search for in JWK
 		// The only valid values are 'EC', 'RSA', and 'oct'
@@ -544,7 +562,7 @@ namespace irods::http
 		}
 
 		// Go through entire key set
-		std::for_each(std::cbegin(_jwks), std::cend(_jwks), [&_verifier, &_alg, &search_string] (const auto& _jwk) -> void {
+		std::for_each(std::cbegin(_jwks), std::cend(_jwks), [&_verifier, &alg, &search_string] (const auto& _jwk) -> void {
 			// Check the optional claims first
 			// Skip JWK if 'use' is not for signing 'sig'
 			// See JWK Section 4.2
@@ -561,8 +579,8 @@ namespace irods::http
 
 			if (_jwk.has_algorithm()) {
 				// Add the algorithm if 'alg' matches desired.
-				if (_jwk.get_algorithm() == _alg) {
-					add_alg_from_jwk(_verifier, _jwk, _alg);
+				if (_jwk.get_algorithm() == alg) {
+					add_alg_from_jwk(_verifier, _jwk, alg);
 					return;
 				}
 
@@ -574,7 +592,7 @@ namespace irods::http
 			if (_jwk.has_key_type()) {
 				// Extract the 'kty' of the JWK, compare to desired 'kty'
 				if (_jwk.get_key_type() == search_string) {
-					add_alg_from_jwk(_verifier, _jwk, _alg);
+					add_alg_from_jwk(_verifier, _jwk, alg);
 					return;
 				}
 
@@ -623,12 +641,12 @@ namespace irods::http
 			auto token_type{boost::to_lower_copy<std::string>(decoded_token.get_type())};
 
 			// Manually verify 'typ' matches what is specified in OJWT
+			// Allow for 'JWT'. Typical pre OJWT use had such claims, based on the JWT standard.
 			// See OJWT Section 4
-			if (!(token_type == "at+jwt" || token_type == "application/at+jwt")) {
+			if (!(token_type == "at+jwt" || token_type == "application/at+jwt" || token_type == "jwt")) {
 				logging::error("{}: Access Token with [typ] of type [{}] is not supported.", __func__, token_type);
-				// return std::nullopt;
+				return std::nullopt;
 			}
-
 
 			// We do not currently support JWEs
 			// See JWE Section 4.1.2
@@ -644,7 +662,6 @@ namespace irods::http
 				logging::error("{}: Nested JWTs are not supported.", __func__);
 				return std::nullopt;
 			}
-
 
 			// Handle missing 'alg'
 			// See JWS Section 4.1.1
@@ -681,7 +698,7 @@ namespace irods::http
 				.with_audience(
 							   irods::http::globals::oidc_configuration().at("client_id").get_ref<const std::string&>())};
 
-			add_algorithms_to_verifier(verifier, jwks, alg);
+			add_algorithms_to_verifier(verifier, jwks, decoded_token);
 
 			// Attempt token validation
 			std::error_code ec;
