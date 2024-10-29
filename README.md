@@ -243,6 +243,10 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
                 // Optional unless running as a protected resource.
                 "client_secret": "xxxxxxxxxxxxxxx",
 
+                // The realm secret used validating signed JWT Access Tokens using a symmetric algorithm.
+                // Used if provided, otherwise, defaults to validating with "client_secret".
+                "realm_secret": "xxxxxxxxxxxxxxx",
+
                 // The OIDC mode the HTTP API will run as.
                 // The following values are supported:
                 // - client:              Run the HTTP API as an OIDC client
