@@ -432,7 +432,6 @@ namespace irods::http
 
 		logging::debug("{}: Received the following response: [{}]", __func__, res.body());
 
-		// JSONize response
 		return res.body();
 	}
 
@@ -477,13 +476,13 @@ namespace irods::http
 		logging::warn("{}: Algorithm [{}] is not supported.", __func__, _alg);
 	}
 
-	/// Adds the specified asymmetric algorithm \p _alg to the verifier \p _verifier, using the additional informaiton provided by the JWK \p _jwk.
+	/// Adds the specified asymmetric algorithm \p _alg to the verifier \p _verifier, using the additional information provided by the JWK \p _jwk.
 	///
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
 	/// \param[in,out] _verifier The jwt::verifier to add additional verification algorithms to.
 	/// \param[in]     _jwk      The JWK containing the required JWA information.
-	/// \param[in]     _alg      The sigining algorithm requested by the signed JWT.
+	/// \param[in]     _alg      The signing algorithm requested by the signed JWT.
 	auto add_asymmetric_alg_from_jwk(jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier, const jwt::jwk<jwt::traits::nlohmann_json>& _jwk, std::string_view _alg) -> void {
 		namespace logging = irods::http::log;
 
@@ -597,10 +596,8 @@ namespace irods::http
 			logging::warn("{}: Could not find the desired [kid] in the JWKs list.", __func__);
 		}
 		// We cannot pick out the specific key used, go through entire list of JWKs
-		// Additionally, symetric algoritms it /seems/ that
-		// "... the octects of the 'client_secret'..." are used for the algorithm...
 
-		// The first two characters of '_alg' should give us
+		// The first two characters of 'alg' should give us
 		// enough information to get the algorithm 'family'
 		const auto algorithm_family{alg.substr(0,2)};
 
@@ -672,14 +669,14 @@ namespace irods::http
 		return _verifier;
 	}
 	
-	/// Validates an OAuth 2.0 Access Token using
+	/// Validates an OAuth 2.0 Access Token using provided JWKs and secrets in the HTTP API configuration.
 	///
 	/// See RFC 9068 for more details on JWT for OAuth 2.0 (OJWT)
 	/// See RFC 7516 for details on JSON Web Encryption (JWE)
 	/// See RFC 7515 for details on JSON Web Signature (JWS)
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
-	/// \param[in] _jwt A std::string represeting the JWT to verify.
+	/// \param[in] _jwt A std::string representing the JWT to verify.
 	///
 	/// \returns The JWT payload if the token can be validated. Otherwise, an empty std::optional is returned
 	///
@@ -692,7 +689,7 @@ namespace irods::http
 			// Decode the JWT
 			auto decoded_token{jwt::decode<jwt::traits::nlohmann_json>(_jwt)};
 
-			// Parse the JWKs discoverd from the OpenID Provider
+			// Parse the JWKs discovered from the OpenID Provider
 			static auto jwks{jwt::parse_jwks<jwt::traits::nlohmann_json>(fetch_jwks_from_openid_provider())};
 
 			// Handling missing 'typ'
@@ -827,7 +824,7 @@ namespace irods::http
 			if (irods::http::globals::oidc_configuration().at("mode").get_ref<const std::string&>() == "protected_resource") {
 				nlohmann::json json_res;
 
-				// Use introspection endpoint if it exsists
+				// Use introspection endpoint if it exists
 				if (auto introspection_endpoint_iter{irods::http::globals::oidc_endpoint_configuration().find(nlohmann::json::json_pointer{"/introspection_endpoint"})}; introspection_endpoint_iter != std::end(irods::http::globals::oidc_endpoint_configuration()) && false) {
 					auto possible_json_res{validate_using_introspection_endpoint(bearer_token)};
 
