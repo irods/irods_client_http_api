@@ -452,7 +452,8 @@ namespace irods::http
 		if (auto realm_secret{irods::http::globals::oidc_configuration().find("realm_secret")};
 		    realm_secret != std::end(irods::http::globals::oidc_configuration()))
 		{
-			key = jwt::base::decode<jwt::alphabet::base64url>(jwt::base::pad<jwt::alphabet::base64url>(realm_secret->get<std::string>()));
+			key = jwt::base::decode<jwt::alphabet::base64url>(
+				jwt::base::pad<jwt::alphabet::base64url>(realm_secret->get<std::string>()));
 		}
 		else if (auto secret{irods::http::globals::oidc_configuration().find("client_secret")};
 		         secret != std::end(irods::http::globals::oidc_configuration()))
@@ -640,14 +641,14 @@ namespace irods::http
 		std::for_each(
 			std::cbegin(_jwks), std::cend(_jwks), [&_verifier, &alg, &search_string](const auto& _jwk) -> void {
 				// Check the optional claims first
-				// Skip JWK if 'use' is not for signing 'sig'
-				// See JWK Section 4.2
+			    // Skip JWK if 'use' is not for signing 'sig'
+			    // See JWK Section 4.2
 				if (_jwk.has_use() && _jwk.get_use() != "sig") {
 					logging::trace("{}: JWK not a signing key, ignoring.", __func__);
 					return;
 				}
 				// JWK might have 'key_ops', try to select keys based off of this
-				// See JWK Section 4.3
+			    // See JWK Section 4.3
 				else if (_jwk.has_key_operations() && !_jwk.get_key_operations().contains("verify")) {
 					logging::trace("{}: JWK not a key used for verification, ignoring.", __func__);
 					return;
@@ -694,7 +695,8 @@ namespace irods::http
 	/// \param[in] _jwt A jwt::decoded_jwt<jwt::traits::nlohmann_json> representing the JWT to verify.
 	///
 	/// \returns The JWT payload if the token can be validated. Otherwise, an empty std::optional is returned
-	auto validate_using_local_validation(jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt) -> std::optional<nlohmann::json>
+	auto validate_using_local_validation(jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt)
+		-> std::optional<nlohmann::json>
 	{
 		namespace logging = irods::http::log;
 
@@ -729,8 +731,7 @@ namespace irods::http
 			// We do not support nested JWTs
 			// This is typically used in JWTs that are signed and then encrypted
 			// See JWT Section 5.2
-			if (_jwt.has_content_type() &&
-			    boost::to_lower_copy<std::string>(_jwt.get_content_type()) == "jwt") {
+			if (_jwt.has_content_type() && boost::to_lower_copy<std::string>(_jwt.get_content_type()) == "jwt") {
 				logging::error("{}: Nested JWTs are not supported.", __func__);
 				return std::nullopt;
 			}
@@ -827,7 +828,10 @@ namespace irods::http
 			// It's possible that the admin didn't include the OIDC configuration stanza.
 			// This use-case is allowed, therefore we check for the OIDC configuration before
 			// attempting to access it. Without this logic, the server would crash.
-			if (static const auto oidc_conf_exists{config.contains(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"})}; !oidc_conf_exists) {
+			if (static const auto oidc_conf_exists{
+					config.contains(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"})};
+			    !oidc_conf_exists)
+			{
 				logging::debug("{}: No 'openid_connect' stanza found in server configuration.", __func__);
 				logging::error("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
 				return {.response = fail(status_type::unauthorized)};
@@ -853,7 +857,8 @@ namespace irods::http
 				}
 
 				// Use introspection endpoint if it exists and local validation fails
-				if (static const auto introspection_endpoint_exists{irods::http::globals::oidc_endpoint_configuration().contains("introspection_endpoint")};
+				if (static const auto introspection_endpoint_exists{
+						irods::http::globals::oidc_endpoint_configuration().contains("introspection_endpoint")};
 				    json_res.empty() && introspection_endpoint_exists)
 				{
 					auto possible_json_res{validate_using_introspection_endpoint(bearer_token)};
