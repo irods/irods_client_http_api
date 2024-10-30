@@ -365,7 +365,7 @@ namespace irods::http
 	}
 
 	/// Validates an OAuth 2.0 Access Token using the Introspection Endpoint
-	/// See RFC 7662 for more details
+	/// See RFC 7662 on OAuth 2.0 Token Introspection for more details
 	///
 	/// \returns An optional containing a nlohmann::json object if verification was successful. Otherwise,
 	///          an empty optional is returned.
