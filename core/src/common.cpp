@@ -392,8 +392,6 @@ namespace irods::http
 	/// See RFC 7517 for more information on JSON Web Key (JWK)
 	///
 	/// \returns A std::string represting the JWKs from the OpenID Provider
-	///
-	/// \todo Stash the results from this function, only allow to run once.
 	auto fetch_jwks_from_openid_provider() -> std::string
 	{
 		namespace logging = irods::http::log;
@@ -438,7 +436,7 @@ namespace irods::http
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
 	/// \param[in,out] _verifier The jwt::verifier to add additional verification algorithms to.
-	/// \param[in]     _alg      The sigining algorithm requested by the signed JWT.
+	/// \param[in]     _alg      The signing algorithm requested by the signed JWT.
 	auto add_symmetric_alg(
 		jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier,
 		std::string_view _alg) -> void
@@ -696,9 +694,6 @@ namespace irods::http
 	/// \param[in] _jwt A jwt::decoded_jwt<jwt::traits::nlohmann_json> representing the JWT to verify.
 	///
 	/// \returns The JWT payload if the token can be validated. Otherwise, an empty std::optional is returned
-	///
-	/// \todo Handle encrypted tokens. MUST reject unencrypted tokens if encryption was negotiated at registration.
-	/// \date 2024-10-16 jwt-cpp does not support encrypted tokens as of current.
 	auto validate_using_local_validation(jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt) -> std::optional<nlohmann::json>
 	{
 		namespace logging = irods::http::log;
