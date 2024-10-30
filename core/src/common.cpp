@@ -693,31 +693,28 @@ namespace irods::http
 	/// See RFC 7515 for details on JSON Web Signature (JWS)
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
-	/// \param[in] _jwt A std::string representing the JWT to verify.
+	/// \param[in] _jwt A jwt::decoded_jwt<jwt::traits::nlohmann_json> representing the JWT to verify.
 	///
 	/// \returns The JWT payload if the token can be validated. Otherwise, an empty std::optional is returned
 	///
 	/// \todo Handle encrypted tokens. MUST reject unencrypted tokens if encryption was negotiated at registration.
 	/// \date 2024-10-16 jwt-cpp does not support encrypted tokens as of current.
-	auto validate_using_local_validation(std::string _jwt) -> std::optional<nlohmann::json>
+	auto validate_using_local_validation(jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt) -> std::optional<nlohmann::json>
 	{
 		namespace logging = irods::http::log;
 
 		try {
-			// Decode the JWT
-			auto decoded_token{jwt::decode<jwt::traits::nlohmann_json>(_jwt)};
-
 			// Parse the JWKs discovered from the OpenID Provider
 			static auto jwks{jwt::parse_jwks<jwt::traits::nlohmann_json>(fetch_jwks_from_openid_provider())};
 
 			// Handling missing 'typ'
-			if (!decoded_token.has_type()) {
+			if (!_jwt.has_type()) {
 				logging::error("{}: invalid Access Token, missing [typ].", __func__);
 				return std::nullopt;
 			}
 
 			// 'typ' is case insensitive
-			auto token_type{boost::to_lower_copy<std::string>(decoded_token.get_type())};
+			auto token_type{boost::to_lower_copy<std::string>(_jwt.get_type())};
 
 			// Manually verify 'typ' matches what is specified in OJWT
 			// Allow for 'JWT'. Typical pre OJWT use had such claims, based on the JWT standard.
@@ -729,7 +726,7 @@ namespace irods::http
 
 			// We do not currently support JWEs
 			// See JWE Section 4.1.2
-			if (decoded_token.has_header_claim("enc")) {
+			if (_jwt.has_header_claim("enc")) {
 				logging::error("{}: JWE is not supported.", __func__);
 				return std::nullopt;
 			}
@@ -737,21 +734,21 @@ namespace irods::http
 			// We do not support nested JWTs
 			// This is typically used in JWTs that are signed and then encrypted
 			// See JWT Section 5.2
-			if (decoded_token.has_content_type() &&
-			    boost::to_lower_copy<std::string>(decoded_token.get_content_type()) == "jwt") {
+			if (_jwt.has_content_type() &&
+			    boost::to_lower_copy<std::string>(_jwt.get_content_type()) == "jwt") {
 				logging::error("{}: Nested JWTs are not supported.", __func__);
 				return std::nullopt;
 			}
 
 			// Handle missing 'alg'
 			// See JWS Section 4.1.1
-			if (!decoded_token.has_algorithm()) {
+			if (!_jwt.has_algorithm()) {
 				logging::error("{}: Invalid Access Token, missing [alg].", __func__);
 				return std::nullopt;
 			}
 
 			// Use the 'alg' specified in the access token
-			auto alg{decoded_token.get_algorithm()};
+			auto alg{_jwt.get_algorithm()};
 
 			// Reject 'alg' type of 'none'
 			// See OJWT Section 4
@@ -762,11 +759,11 @@ namespace irods::http
 
 			// Reject JWT with JWS 'crit', we do not support extensions using 'crit' at this moment
 			// See JWS Section 4.1.11
-			if (decoded_token.has_header_claim("crit")) {
+			if (_jwt.has_header_claim("crit")) {
 				logging::error(
 					"{}: Access Token with unsupported [crit] claim provided: [{}].",
 					__func__,
-					decoded_token.get_header_claim("crit").as_string());
+					_jwt.get_header_claim("crit").as_string());
 				return std::nullopt;
 			}
 
@@ -780,11 +777,11 @@ namespace irods::http
 					.with_audience(
 						irods::http::globals::oidc_configuration().at("client_id").get_ref<const std::string&>())};
 
-			add_algorithms_to_verifier(verifier, jwks, decoded_token);
+			add_algorithms_to_verifier(verifier, jwks, _jwt);
 
 			// Attempt token validation
 			std::error_code ec;
-			verifier.verify(decoded_token, ec);
+			verifier.verify(_jwt, ec);
 
 			if (ec) {
 				logging::error("{}: Token verification failed [{}].", __func__, ec.message());
@@ -792,7 +789,7 @@ namespace irods::http
 			}
 
 			logging::trace("{}: Token verification succeeded.", __func__);
-			return decoded_token.get_payload_json();
+			return _jwt.get_payload_json();
 		}
 		catch (const std::exception& e) {
 			logging::error("{}: Unexpected exception [{}]", __func__, e.what());
@@ -835,7 +832,7 @@ namespace irods::http
 			// It's possible that the admin didn't include the OIDC configuration stanza.
 			// This use-case is allowed, therefore we check for the OIDC configuration before
 			// attempting to access it. Without this logic, the server would crash.
-			if (!config.contains(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"})) {
+			if (static const auto oidc_conf_exists{config.contains(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"})}; !oidc_conf_exists) {
 				logging::debug("{}: No 'openid_connect' stanza found in server configuration.", __func__);
 				logging::error("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
 				return {.response = fail(status_type::unauthorized)};
@@ -846,28 +843,33 @@ namespace irods::http
 			    "protected_resource") {
 				nlohmann::json json_res;
 
-				// Use introspection endpoint if it exists
-				if (auto introspection_endpoint_iter{irods::http::globals::oidc_endpoint_configuration().find(
-						nlohmann::json::json_pointer{"/introspection_endpoint"})};
-				    introspection_endpoint_iter != std::end(irods::http::globals::oidc_endpoint_configuration()))
+				// Try parsing token as JWT Access Token
+				try {
+					auto token{jwt::decode<jwt::traits::nlohmann_json>(bearer_token)};
+					auto possible_json_res{validate_using_local_validation(token)};
+
+					if (possible_json_res) {
+						json_res = *possible_json_res;
+					}
+				}
+				// Parsing of the token failed, this is not a JWT access token
+				catch (const std::exception& e) {
+					logging::info("{}: {}", __func__, e.what());
+				}
+
+				// Use introspection endpoint if it exists and local validation fails
+				if (static const auto introspection_endpoint_exists{irods::http::globals::oidc_endpoint_configuration().contains("introspection_endpoint")};
+				    json_res.empty() && introspection_endpoint_exists)
 				{
 					auto possible_json_res{validate_using_introspection_endpoint(bearer_token)};
-
-					if (!possible_json_res) {
-						return {.response = fail(status_type::unauthorized)};
+					if (possible_json_res) {
+						json_res = *possible_json_res;
 					}
-
-					json_res = *possible_json_res;
 				}
-				// Otherwise, try parsing as a JWT access token
-				else {
-					auto possible_json_res{validate_using_local_validation(bearer_token)};
 
-					if (!possible_json_res) {
-						return {.response = fail(status_type::unauthorized)};
-					}
-
-					json_res = *possible_json_res;
+				if (json_res.empty()) {
+					logging::error("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
+					return {.response = fail(status_type::unauthorized)};
 				}
 
 				// Do mapping of user to irods user
