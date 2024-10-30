@@ -405,7 +405,7 @@ namespace irods::http
 
 		if (parsed_uri.has_error()) {
 			logging::error("{}: Error trying to parse jwks_uri [{}]. Please check configuration.", __func__, jwks_uri);
-			return "{\"error\", \"bad endpoint\"}";
+			throw std::runtime_error{"Invalid [jwks_uri]."};
 		}
 
 		const auto url{*parsed_uri};
