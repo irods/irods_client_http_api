@@ -364,6 +364,8 @@ namespace irods::http
 		return std::nullopt;
 	}
 
+	using jwt_verifier = jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>;
+
 	/// Validates an OAuth 2.0 Access Token using the Introspection Endpoint
 	/// See RFC 7662 on OAuth 2.0 Token Introspection for more details
 	///
@@ -435,10 +437,10 @@ namespace irods::http
 	///
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
-	/// \param[in,out] _verifier The jwt::verifier to add additional verification algorithms to.
+	/// \param[in,out] _verifier The jwt_verifier to add additional verification algorithms to.
 	/// \param[in]     _alg      The signing algorithm requested by the signed JWT.
 	auto add_symmetric_alg(
-		jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier,
+		jwt_verifier& _verifier,
 		std::string_view _alg) -> void
 	{
 		namespace logging = irods::http::log;
@@ -485,11 +487,11 @@ namespace irods::http
 	///
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
-	/// \param[in,out] _verifier The jwt::verifier to add additional verification algorithms to.
+	/// \param[in,out] _verifier The jwt_verifier to add additional verification algorithms to.
 	/// \param[in]     _jwk      The JWK containing the required JWA information.
 	/// \param[in]     _alg      The signing algorithm requested by the signed JWT.
 	auto add_asymmetric_alg_from_jwk(
-		jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier,
+		jwt_verifier& _verifier,
 		const jwt::jwk<jwt::traits::nlohmann_json>& _jwk,
 		std::string_view _alg) -> void
 	{
@@ -587,16 +589,16 @@ namespace irods::http
 	///
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA)
 	///
-	/// \param[in,out] _verifier The jwt::verifier to add additional verification algorithms to.
+	/// \param[in,out] _verifier The jwt_verifier to add additional verification algorithms to.
 	/// \param[in]     _jwks     The JWKs to search through.
 	/// \param[in]     _jwt      The decoded JWT that needs to be verified.
 	///
-	/// \returns A reference to the provided jwt::verifier, \p _verifier, allowing for chaining.
+	/// \returns A reference to the provided jwt_verifier, \p _verifier, allowing for chaining.
 	auto add_algorithms_to_verifier(
-		jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier,
+		jwt_verifier& _verifier,
 		const jwt::jwks<jwt::traits::nlohmann_json>& _jwks,
 		const jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt)
-		-> jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>&
+		-> jwt_verifier&
 	{
 		namespace logging = irods::http::log;
 
