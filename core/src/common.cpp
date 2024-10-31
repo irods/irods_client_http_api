@@ -393,7 +393,7 @@ namespace irods::http
 	/// See OpenID Connect Discovery 1.0 Section 3 for info on jwks_uri
 	/// See RFC 7517 for more information on JSON Web Key (JWK)
 	///
-	/// \returns A std::string represting the JWKs from the OpenID Provider
+	/// \returns A std::string representing the JWKs from the OpenID Provider
 	auto fetch_jwks_from_openid_provider() -> std::string
 	{
 		namespace logging = irods::http::log;
