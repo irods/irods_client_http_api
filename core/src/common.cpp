@@ -512,7 +512,9 @@ namespace irods::http
 			auto pub_key{jwt::helper::create_public_key_from_rsa_components(mod, exp)};
 
 			// Add verification algorithm
+			// NOLINTNEXTLINE(bugprone-branch-clone)
 			if (algorithm_family == "RS") {
+				// NOLINTNEXTLINE(bugprone-branch-clone)
 				if (algorithm_specifics == "256") {
 					logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
 					_verifier.allow_algorithm(jwt::algorithm::rs256(pub_key));
@@ -528,6 +530,7 @@ namespace irods::http
 			}
 			// "PS"
 			else {
+				// NOLINTNEXTLINE(bugprone-branch-clone)
 				if (algorithm_specifics == "256") {
 					logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
 					_verifier.allow_algorithm(jwt::algorithm::ps256(pub_key));
@@ -543,7 +546,7 @@ namespace irods::http
 			}
 			return;
 		}
-		else if (algorithm_family == "ES") {
+		if (algorithm_family == "ES") {
 			logging::trace("{}: Detected [ES], attempting extraction of attributes from JWK...", __func__);
 
 			// Get curve parameter (JWA Section 6.2.1)
@@ -560,6 +563,7 @@ namespace irods::http
 			auto pub_key{jwt::helper::create_public_key_from_ec_components(crv, x, y)};
 
 			// Add verification algorithm
+			// NOLINTNEXTLINE(bugprone-branch-clone)
 			if (algorithm_specifics == "256") {
 				logging::trace("{}: Adding [{}] to allowed verification algorithms.", __func__, _alg);
 				_verifier.allow_algorithm(jwt::algorithm::es256(pub_key));
@@ -639,18 +643,18 @@ namespace irods::http
 
 		// Go through entire key set
 		std::for_each(
-			std::cbegin(_jwks), std::cend(_jwks), [&_verifier, &alg, &search_string](const auto& _jwk) -> void {
+			std::cbegin(_jwks), std::cend(_jwks), [fn=__func__, &_verifier, &alg, &search_string](const auto& _jwk) -> void {
 				// Check the optional claims first
 			    // Skip JWK if 'use' is not for signing 'sig'
 			    // See JWK Section 4.2
 				if (_jwk.has_use() && _jwk.get_use() != "sig") {
-					logging::trace("{}: JWK not a signing key, ignoring.", __func__);
+					logging::trace("{}: JWK not a signing key, ignoring.", fn);
 					return;
 				}
 				// JWK might have 'key_ops', try to select keys based off of this
 			    // See JWK Section 4.3
-				else if (_jwk.has_key_operations() && !_jwk.get_key_operations().contains("verify")) {
-					logging::trace("{}: JWK not a key used for verification, ignoring.", __func__);
+				if (_jwk.has_key_operations() && !_jwk.get_key_operations().contains("verify")) {
+					logging::trace("{}: JWK not a key used for verification, ignoring.", fn);
 					return;
 				}
 
@@ -661,7 +665,7 @@ namespace irods::http
 						return;
 					}
 
-					logging::trace("{}: JWK [alg] does not match JWT [alg], ignoring.", __func__);
+					logging::trace("{}: JWK [alg] does not match JWT [alg], ignoring.", fn);
 					return;
 				}
 
@@ -673,11 +677,11 @@ namespace irods::http
 						return;
 					}
 
-					logging::trace("{}: JWK [kty] does not match JWT desired [kty], ignoring.", __func__);
+					logging::trace("{}: JWK [kty] does not match JWT desired [kty], ignoring.", fn);
 					return;
 				}
 
-				logging::error("{}: Invalid JWK, missing [kty] claim. Ignoring.", __func__);
+				logging::error("{}: Invalid JWK, missing [kty] claim. Ignoring.", fn);
 				return;
 			});
 
