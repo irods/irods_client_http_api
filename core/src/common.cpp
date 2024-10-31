@@ -455,7 +455,7 @@ namespace irods::http
 		    realm_secret != std::end(irods::http::globals::oidc_configuration()))
 		{
 			key = jwt::base::decode<jwt::alphabet::base64url>(
-				jwt::base::pad<jwt::alphabet::base64url>(realm_secret->get<std::string>()));
+				jwt::base::pad<jwt::alphabet::base64url>(realm_secret->get_ref<const std::string&>()));
 		}
 		else if (auto secret{irods::http::globals::oidc_configuration().find("client_secret")};
 		         secret != std::end(irods::http::globals::oidc_configuration()))
