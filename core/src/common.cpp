@@ -371,7 +371,7 @@ namespace irods::http
 	///
 	/// \returns An optional containing a nlohmann::json object if verification was successful. Otherwise,
 	///          an empty optional is returned.
-	auto validate_using_introspection_endpoint(std::string _bearer_token) -> std::optional<nlohmann::json>
+	auto validate_using_introspection_endpoint(const std::string& _bearer_token) -> std::optional<nlohmann::json>
 	{
 		namespace logging = irods::http::log;
 
