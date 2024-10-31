@@ -439,9 +439,7 @@ namespace irods::http
 	///
 	/// \param[in,out] _verifier The jwt_verifier to add additional verification algorithms to.
 	/// \param[in]     _alg      The signing algorithm requested by the signed JWT.
-	auto add_symmetric_alg(
-		jwt_verifier& _verifier,
-		std::string_view _alg) -> void
+	auto add_symmetric_alg(jwt_verifier& _verifier, std::string_view _alg) -> void
 	{
 		namespace logging = irods::http::log;
 
@@ -597,8 +595,7 @@ namespace irods::http
 	auto add_algorithms_to_verifier(
 		jwt_verifier& _verifier,
 		const jwt::jwks<jwt::traits::nlohmann_json>& _jwks,
-		const jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt)
-		-> jwt_verifier&
+		const jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt) -> jwt_verifier&
 	{
 		namespace logging = irods::http::log;
 
@@ -842,9 +839,8 @@ namespace irods::http
 			// This use-case is allowed, therefore we check for the OIDC configuration before
 			// attempting to access it. Without this logic, the server would crash.
 			static const auto oidc_conf_exists{
-					config.contains(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"})};
-			if (!oidc_conf_exists)
-			{
+				config.contains(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"})};
+			if (!oidc_conf_exists) {
 				logging::debug("{}: No 'openid_connect' stanza found in server configuration.", __func__);
 				logging::error("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
 				return {.response = fail(status_type::unauthorized)};
@@ -871,9 +867,8 @@ namespace irods::http
 
 				// Use introspection endpoint if it exists and local validation fails
 				static const auto introspection_endpoint_exists{
-						irods::http::globals::oidc_endpoint_configuration().contains("introspection_endpoint")};
-				if (json_res.empty() && introspection_endpoint_exists)
-				{
+					irods::http::globals::oidc_endpoint_configuration().contains("introspection_endpoint")};
+				if (json_res.empty() && introspection_endpoint_exists) {
 					auto possible_json_res{validate_using_introspection_endpoint(bearer_token)};
 					if (possible_json_res) {
 						json_res = *possible_json_res;
