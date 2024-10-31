@@ -643,7 +643,9 @@ namespace irods::http
 
 		// Go through entire key set
 		std::for_each(
-			std::cbegin(_jwks), std::cend(_jwks), [fn=__func__, &_verifier, &alg, &search_string](const auto& _jwk) -> void {
+			std::cbegin(_jwks),
+			std::cend(_jwks),
+			[fn = __func__, &_verifier, &alg, &search_string](const auto& _jwk) -> void {
 				// Check the optional claims first
 			    // Skip JWK if 'use' is not for signing 'sig'
 			    // See JWK Section 4.2
