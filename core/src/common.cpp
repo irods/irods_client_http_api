@@ -591,7 +591,7 @@ namespace irods::http
 	/// \param[in]     _jwks     The JWKs to search through.
 	/// \param[in]     _jwt      The decoded JWT that needs to be verified.
 	///
-	/// \returns A refernce to the provided jwt::verifier, \p _verifier, allowing for chaining.
+	/// \returns A reference to the provided jwt::verifier, \p _verifier, allowing for chaining.
 	auto add_algorithms_to_verifier(
 		jwt::verifier<jwt::default_clock, jwt::traits::nlohmann_json>& _verifier,
 		const jwt::jwks<jwt::traits::nlohmann_json>& _jwks,
@@ -638,6 +638,11 @@ namespace irods::http
 		// Symmetric algo (JWA Section 3.1)
 		else if (algorithm_family == "HS") {
 			add_symmetric_alg(_verifier, alg);
+			return _verifier;
+		}
+		// Not a valid or supported algorithm
+		else {
+			logging::error("{}: 'alg' of [{}] is unsupported.", __func__, alg);
 			return _verifier;
 		}
 
@@ -701,7 +706,7 @@ namespace irods::http
 	/// \param[in] _jwt A jwt::decoded_jwt<jwt::traits::nlohmann_json> representing the JWT to verify.
 	///
 	/// \returns The JWT payload if the token can be validated. Otherwise, an empty std::optional is returned
-	auto validate_using_local_validation(jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt)
+	auto validate_using_local_validation(const jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt)
 		-> std::optional<nlohmann::json>
 	{
 		namespace logging = irods::http::log;
