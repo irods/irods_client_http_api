@@ -446,15 +446,18 @@ namespace irods::http
 		auto algorithm_family{_alg.substr(0, 2)};
 		auto algorithm_specifics{_alg.substr(2)};
 
-		// Extract the secret key
-		// OpenID secret should be our secret
 		std::string key;
+
+		// Use a realm_secret if provided. It should be base64url encoded, as the key might
+		// not be ASCII printable.
 		if (auto realm_secret{irods::http::globals::oidc_configuration().find("realm_secret")};
 		    realm_secret != std::end(irods::http::globals::oidc_configuration()))
 		{
 			key = jwt::base::decode<jwt::alphabet::base64url>(
 				jwt::base::pad<jwt::alphabet::base64url>(realm_secret->get_ref<const std::string&>()));
 		}
+		// While not for access tokens, ID Tokens are signed using the client_secret.
+		// Some OpenID providers may do the same for access tokens
 		else if (auto secret{irods::http::globals::oidc_configuration().find("client_secret")};
 		         secret != std::end(irods::http::globals::oidc_configuration()))
 		{
