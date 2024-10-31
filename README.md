@@ -245,6 +245,7 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
 
                 // The realm secret used validating signed JWT Access Tokens using a symmetric algorithm.
                 // Used if provided, otherwise, defaults to validating with "client_secret".
+                // If provided, this MUST be base64url encoded.
                 "realm_secret": "xxxxxxxxxxxxxxx",
 
                 // The OIDC mode the HTTP API will run as.
