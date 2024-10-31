@@ -862,7 +862,7 @@ namespace irods::http
 				}
 				// Parsing of the token failed, this is not a JWT access token
 				catch (const std::exception& e) {
-					logging::info("{}: {}", __func__, e.what());
+					logging::debug("{}: {}", __func__, e.what());
 				}
 
 				// Use introspection endpoint if it exists and local validation fails
