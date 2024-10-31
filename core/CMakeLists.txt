@@ -27,6 +27,7 @@ target_link_libraries(
   "${IRODS_EXTERNALS_FULLPATH_BOOST}/lib/libboost_program_options.so"
   "${IRODS_EXTERNALS_FULLPATH_BOOST}/lib/libboost_url.so"
   CURL::libcurl
+  jwt-cpp::jwt-cpp
 )
 
 target_compile_definitions(
