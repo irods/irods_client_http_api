@@ -841,9 +841,9 @@ namespace irods::http
 			// It's possible that the admin didn't include the OIDC configuration stanza.
 			// This use-case is allowed, therefore we check for the OIDC configuration before
 			// attempting to access it. Without this logic, the server would crash.
-			if (static const auto oidc_conf_exists{
+			static const auto oidc_conf_exists{
 					config.contains(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"})};
-			    !oidc_conf_exists)
+			if (!oidc_conf_exists)
 			{
 				logging::debug("{}: No 'openid_connect' stanza found in server configuration.", __func__);
 				logging::error("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
@@ -870,9 +870,9 @@ namespace irods::http
 				}
 
 				// Use introspection endpoint if it exists and local validation fails
-				if (static const auto introspection_endpoint_exists{
+				static const auto introspection_endpoint_exists{
 						irods::http::globals::oidc_endpoint_configuration().contains("introspection_endpoint")};
-				    json_res.empty() && introspection_endpoint_exists)
+				if (json_res.empty() && introspection_endpoint_exists)
 				{
 					auto possible_json_res{validate_using_introspection_endpoint(bearer_token)};
 					if (possible_json_res) {
