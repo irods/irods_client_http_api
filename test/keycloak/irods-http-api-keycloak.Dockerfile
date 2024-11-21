@@ -1,3 +1,5 @@
+# Start with a 'builder' image that will be
+# used as scratch (i.e. dirty environment)
 FROM quay.io/keycloak/keycloak:23.0.6 AS builder
 
 # Build since import command uses --optimized
