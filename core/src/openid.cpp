@@ -154,6 +154,12 @@ namespace irods::http::openid
 				logging::warn("{}: Could not find our [client_id] in [aud]. Validation failed.", __func__);
 				return std::nullopt;
 			}
+		// Some IAM servers (e.g. keycloak) could be set up
+		// to exclude `aud' from a bearer token payload 	
+		// If no 'aud' was found in bearer token, do not accept 
+		} else {
+		  logging::warn("{}: Bearer token payload is missing [aud]. Validation failed.", __func__);
+		  return std::nullopt;
 		}
 
 		// The 'iss' provided should match the 'issuer' retrieved from the OpenID Provider's
