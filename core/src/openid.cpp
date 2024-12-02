@@ -157,7 +157,8 @@ namespace irods::http::openid
 		// Some IAM servers (e.g. keycloak) could be set up
 		// to exclude `aud' from a bearer token payload 	
 		// If no 'aud' was found in bearer token, do not accept 
-		} else {
+		} else if (auto strict_aud{irods::http::globals::oidc_configuration().find("strict_introspection_endpoint_aud")};
+		strict_aud != std::end(irods::http::globals::oidc_configuration()) && strict_aud->get<bool>()) {
 		  logging::warn("{}: Bearer token payload is missing [aud]. Validation failed.", __func__);
 		  return std::nullopt;
 		}
