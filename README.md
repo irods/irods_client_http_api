@@ -257,6 +257,10 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
                 // If provided, it MUST be base64url encoded.
                 "nonstandard_id_token_secret": "xxxxxxxxxxxxxxx",
 
+                // Determines if the aud member is required in the
+                // response from the introspection endpoint.
+                "strict_introspection_endpoint_aud": false,
+
                 // The OIDC mode the HTTP API will run as.
                 // The following values are supported:
                 // - client:              Run the HTTP API as an OIDC client
