@@ -235,7 +235,7 @@ constexpr auto default_jsonschema() -> std::string_view
                                 "nonstandard_id_token_secret": {{
                                     "type": "string"
                                 }},
-                                "strict_introspection_endpoint_aud": {{
+                                "require_aud_member_from_introspection_endpoint": {{
                                     "type": "boolean"
                                 }},
                                 "redirect_uri": {{
