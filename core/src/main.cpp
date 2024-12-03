@@ -512,6 +512,7 @@ auto print_configuration_template() -> void
                 "client_id": "<string>",
                 "client_secret": "<string>",
                 "mode": "client",
+                "require_aud_member_from_introspection_endpoint": false,
                 "redirect_uri": "<string>",
                 "user_mapping": {{
                     "plugin_path": "<string>",
