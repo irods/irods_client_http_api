@@ -267,6 +267,7 @@ constexpr auto default_jsonschema() -> std::string_view
                                 "provider_url",
                                 "mode",
                                 "client_id",
+                                "require_aud_member_from_introspection_endpoint",
                                 "redirect_uri",
                                 "tls_certificates_directory",
                                 "user_mapping"
