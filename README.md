@@ -257,8 +257,10 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
                 // If provided, it MUST be base64url encoded.
                 "nonstandard_id_token_secret": "xxxxxxxxxxxxxxx",
 
-                // Determines if the "aud" member is required in the
-                // response from the introspection endpoint.
+                // Controls whether the HTTP API requires the presence of the
+                // "aud" member in the introspection endpoint response. If set
+                // to true and the "aud" member is NOT present, the provided
+                // access token will be rejected.
                 "require_aud_member_from_introspection_endpoint": false,
 
                 // The OIDC mode the HTTP API will run as.
