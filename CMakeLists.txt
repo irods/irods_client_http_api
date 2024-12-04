@@ -75,12 +75,36 @@ if (IRODS_ENABLE_ADDRESS_SANITIZER)
   # parts of the binary are compiled with ASAN and other parts are not.
   add_compile_definitions(IRODS_ADDRESS_SANITIZER_DEFAULT_OPTIONS="log_path=/tmp/irods_client_http_api_asan_output:detect_container_overflow=0")
   add_compile_options(
-    -fsanitize=address
+    -fsanitize=address)
+  add_link_options(
+    -fsanitize=address)
+endif()
+
+option(IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER "Enables detection of undefined behavior provided by Undefined Behavior Sanitizer." OFF)
+if (IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER)
+  # Make sure the correct llvm-symbolizer binary is available to Address Sanitizer. This binary
+  # allows debug symbols to be reported appropriately. Additionally, set options for logging.
+  #
+  #     export PATH=/opt/irods-externals/clang13.0.1-0/bin:$PATH
+  #
+  #     export UBSAN_OPTIONS=print_stacktrace=1
+  #
+  add_compile_options(
+    -fsanitize=undefined
+    -fsanitize=local-bounds
+    -fsanitize=nullability)
+  add_link_options(
+    -fsanitize=undefined
+    -fsanitize=local-bounds
+    -fsanitize=nullability)
+endif()
+
+if (IRODS_ENABLE_ADDRESS_SANITIZER OR IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER)
+  add_compile_options(
     -fno-omit-frame-pointer
     -fno-optimize-sibling-calls
     -O1)
   add_link_options(
-    -fsanitize=address
     -fno-omit-frame-pointer
     -fno-optimize-sibling-calls
     -O1)
