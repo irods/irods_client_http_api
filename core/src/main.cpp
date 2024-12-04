@@ -235,6 +235,9 @@ constexpr auto default_jsonschema() -> std::string_view
                                 "nonstandard_id_token_secret": {{
                                     "type": "string"
                                 }},
+                                "require_aud_member_from_introspection_endpoint": {{
+                                    "type": "boolean"
+                                }},
                                 "redirect_uri": {{
                                     "type": "string",
                                     "format": "uri"
@@ -264,6 +267,7 @@ constexpr auto default_jsonschema() -> std::string_view
                                 "provider_url",
                                 "mode",
                                 "client_id",
+                                "require_aud_member_from_introspection_endpoint",
                                 "redirect_uri",
                                 "tls_certificates_directory",
                                 "user_mapping"
@@ -508,6 +512,7 @@ auto print_configuration_template() -> void
                 "client_id": "<string>",
                 "client_secret": "<string>",
                 "mode": "client",
+                "require_aud_member_from_introspection_endpoint": false,
                 "redirect_uri": "<string>",
                 "user_mapping": {{
                     "plugin_path": "<string>",
