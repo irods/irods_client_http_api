@@ -257,7 +257,7 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
                 // If provided, it MUST be base64url encoded.
                 "nonstandard_id_token_secret": "xxxxxxxxxxxxxxx",
 
-                // Determines if the aud member is required in the
+                // Determines if the "aud" member is required in the
                 // response from the introspection endpoint.
                 "require_aud_member_from_introspection_endpoint": false,
 
