@@ -91,10 +91,19 @@ if (IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER)
   #
   add_compile_options(
     -fsanitize=undefined
+    -fsanitize=float-divide-by-zero
+    -fsanitize=unsigned-integer-overflow
+    -fsanitize-trap=unsigned-integer-overflow
+    -fsanitize=implicit-conversion
     -fsanitize=local-bounds
-    -fsanitize=nullability)
+    -fsanitize=nullability
+    -fsanitize-ignorelist=${CMAKE_CURRENT_SOURCE_DIR}/ignorelist.txt)
   add_link_options(
     -fsanitize=undefined
+    -fsanitize=float-divide-by-zero
+    -fsanitize=unsigned-integer-overflow
+    -fsanitize-trap=unsigned-integer-overflow
+    -fsanitize=implicit-conversion
     -fsanitize=local-bounds
     -fsanitize=nullability)
 endif()
