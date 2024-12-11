@@ -82,7 +82,7 @@ endif()
 
 option(IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER "Enables detection of undefined behavior provided by Undefined Behavior Sanitizer." OFF)
 if (IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER)
-  # Make sure the correct llvm-symbolizer binary is available to Address Sanitizer. This binary
+  # Make sure the correct llvm-symbolizer binary is available to Undefined Behavior Sanitizer. This binary
   # allows debug symbols to be reported appropriately. Additionally, set options for logging.
   #
   #     export PATH=/opt/irods-externals/clang13.0.1-0/bin:$PATH
