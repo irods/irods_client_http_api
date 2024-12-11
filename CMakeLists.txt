@@ -93,7 +93,6 @@ if (IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER)
     -fsanitize=undefined
     -fsanitize=float-divide-by-zero
     -fsanitize=unsigned-integer-overflow
-    -fsanitize-trap=unsigned-integer-overflow
     -fsanitize=implicit-conversion
     -fsanitize=local-bounds
     -fsanitize=nullability
@@ -102,7 +101,6 @@ if (IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER)
     -fsanitize=undefined
     -fsanitize=float-divide-by-zero
     -fsanitize=unsigned-integer-overflow
-    -fsanitize-trap=unsigned-integer-overflow
     -fsanitize=implicit-conversion
     -fsanitize=local-bounds
     -fsanitize=nullability)
