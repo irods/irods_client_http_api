@@ -74,13 +74,41 @@ if (IRODS_ENABLE_ADDRESS_SANITIZER)
   # detect_container_overflow is disabled to guard against false positives which occur when
   # parts of the binary are compiled with ASAN and other parts are not.
   add_compile_definitions(IRODS_ADDRESS_SANITIZER_DEFAULT_OPTIONS="log_path=/tmp/irods_client_http_api_asan_output:detect_container_overflow=0")
+  add_compile_options(-fsanitize=address)
+  add_link_options(-fsanitize=address)
+endif()
+
+option(IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER "Enables detection of undefined behavior provided by Undefined Behavior Sanitizer." OFF)
+if (IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER)
+  # Make sure the correct llvm-symbolizer binary is available to Undefined Behavior Sanitizer. This binary
+  # allows debug symbols to be reported appropriately. Additionally, set options for logging.
+  #
+  #     export PATH=/opt/irods-externals/clang13.0.1-0/bin:$PATH
+  add_compile_definitions(IRODS_UNDEFINED_BEHAVIOR_SANITIZER_DEFAULT_OPTIONS="log_path=/tmp/irods_client_http_api_ubsan_output")
+
   add_compile_options(
-    -fsanitize=address
+    -fsanitize=undefined
+    -fsanitize=float-divide-by-zero
+    -fsanitize=unsigned-integer-overflow
+    -fsanitize=implicit-conversion
+    -fsanitize=local-bounds
+    -fsanitize=nullability
+    -fsanitize-ignorelist=${CMAKE_CURRENT_SOURCE_DIR}/ignorelist.txt)
+  add_link_options(
+    -fsanitize=undefined
+    -fsanitize=float-divide-by-zero
+    -fsanitize=unsigned-integer-overflow
+    -fsanitize=implicit-conversion
+    -fsanitize=local-bounds
+    -fsanitize=nullability)
+endif()
+
+if (IRODS_ENABLE_ADDRESS_SANITIZER OR IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER)
+  add_compile_options(
     -fno-omit-frame-pointer
     -fno-optimize-sibling-calls
     -O1)
   add_link_options(
-    -fsanitize=address
     -fno-omit-frame-pointer
     -fno-optimize-sibling-calls
     -O1)

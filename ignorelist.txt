@@ -1,0 +1,7 @@
+[unsigned-integer-overflow]
+src:/opt/irods-externals/boost-libcxx1.81.0-1/include/boost/beast/http/impl/field.ipp
+src:/opt/irods-externals/boost-libcxx1.81.0-1/include/boost/beast/core/impl/string.ipp
+src:/opt/irods-externals/boost-libcxx1.81.0-1/include/boost/beast/core/detail/string.hpp
+
+[implicit-conversion]
+src:/opt/irods-externals/boost-libcxx1.81.0-1/include/boost/asio/detail/impl/signal_set_service.ipp
