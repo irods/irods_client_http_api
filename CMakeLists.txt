@@ -86,10 +86,6 @@ if (IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER)
   # allows debug symbols to be reported appropriately. Additionally, set options for logging.
   #
   #     export PATH=/opt/irods-externals/clang13.0.1-0/bin:$PATH
-  #
-  #     export UBSAN_OPTIONS=print_stacktrace=1
-  #
-
   add_compile_definitions(IRODS_UNDEFINED_BEHAVIOR_SANITIZER_DEFAULT_OPTIONS="log_path=/tmp/irods_client_http_api_ubsan_output")
 
   add_compile_options(
