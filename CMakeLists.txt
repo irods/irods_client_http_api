@@ -74,10 +74,8 @@ if (IRODS_ENABLE_ADDRESS_SANITIZER)
   # detect_container_overflow is disabled to guard against false positives which occur when
   # parts of the binary are compiled with ASAN and other parts are not.
   add_compile_definitions(IRODS_ADDRESS_SANITIZER_DEFAULT_OPTIONS="log_path=/tmp/irods_client_http_api_asan_output:detect_container_overflow=0")
-  add_compile_options(
-    -fsanitize=address)
-  add_link_options(
-    -fsanitize=address)
+  add_compile_options(-fsanitize=address)
+  add_link_options(-fsanitize=address)
 endif()
 
 option(IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER "Enables detection of undefined behavior provided by Undefined Behavior Sanitizer." OFF)
