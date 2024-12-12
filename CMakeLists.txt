@@ -89,6 +89,9 @@ if (IRODS_ENABLE_UNDEFINED_BEHAVIOR_SANITIZER)
   #
   #     export UBSAN_OPTIONS=print_stacktrace=1
   #
+
+  add_compile_definitions(IRODS_UNDEFINED_BEHAVIOR_SANITIZER_DEFAULT_OPTIONS="log_path=/tmp/irods_client_http_api_ubsan_output")
+
   add_compile_options(
     -fsanitize=undefined
     -fsanitize=float-divide-by-zero
