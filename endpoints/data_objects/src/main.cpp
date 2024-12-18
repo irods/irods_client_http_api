@@ -302,8 +302,15 @@ namespace
 		} // start
 
 	  private:
+		auto extend_timeout_for_request() -> void
+		{
+			sess_ptr_->stream().expires_after(std::chrono::seconds(sess_ptr_->timeout_in_seconds()));
+		} // extend_timeout_for_request
+
 		auto stream_bytes_to_client() -> void
 		{
+			extend_timeout_for_request();
+
 			irods::http::globals::background_task([self = shared_from_this(), fn = __func__]() mutable {
 				self->in_.read(
 					self->buffer_.data(),
@@ -327,6 +334,8 @@ namespace
 					self->res_.body().size = self->in_.gcount();
 					self->res_.body().more = true;
 				}
+
+				self->extend_timeout_for_request();
 
 				async_write(
 					self->sess_ptr_->stream(),
@@ -397,8 +406,15 @@ namespace
 		} // start
 
 	  private:
+		auto extend_timeout_for_request() -> void
+		{
+			sess_ptr_->stream().expires_after(std::chrono::seconds(sess_ptr_->timeout_in_seconds()));
+		} // extend_timeout_for_request
+
 		auto stream_bytes_to_irods() -> void
 		{
+			extend_timeout_for_request();
+
 			irods::http::globals::background_task([self = shared_from_this(), fn = __func__]() mutable {
 				try {
 					if (self->remaining_bytes_ > 0) {
@@ -422,6 +438,8 @@ namespace
 						self->out_ptr_->write(self->read_pos_, to_send);
 						self->read_pos_ += to_send; // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 						self->remaining_bytes_ -= to_send;
+
+						self->extend_timeout_for_request();
 
 						return self->stream_bytes_to_irods();
 					}
