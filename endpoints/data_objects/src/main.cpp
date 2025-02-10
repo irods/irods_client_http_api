@@ -115,7 +115,7 @@ namespace
 			}
 
 			if (!stream_) {
-				THROW(SYS_INTERNAL_ERR, fmt::format("Could not open output stream for [{}].", _path));
+				THROW(SYS_INTERNAL_ERR, fmt::format("Could not open output stream to [{}].", _path));
 			}
 		} // parallel_write_stream (constructor)
 
@@ -1049,7 +1049,7 @@ namespace
 
 				namespace io = irods::experimental::io;
 
-				logging::trace(*_sess_ptr, "{}: Opening initial output stream to [{}].", fn, lpath_iter->second);
+				logging::trace(*_sess_ptr, "{}: Opening primary output stream to [{}].", fn, lpath_iter->second);
 
 				std::vector<std::shared_ptr<parallel_write_stream>> pw_streams;
 				pw_streams.reserve(stream_count);
@@ -1070,7 +1070,7 @@ namespace
 						ticket = iter->second;
 					}
 
-					// Open the first stream.
+					// Open the primary stream.
 					pw_streams.emplace_back(std::make_shared<parallel_write_stream>(
 						client_info.username, lpath_iter->second, openmode, ticket));
 
@@ -1084,6 +1084,7 @@ namespace
 						first_stream.leaf_resource_name().value);
 
 					// Open secondary streams using the first stream as a base.
+					logging::trace(*_sess_ptr, "{}: Opening secondary output streams to [{}].", fn, lpath_iter->second);
 					for (int i = 0; i < stream_count; ++i) {
 						pw_streams.emplace_back(std::make_shared<parallel_write_stream>(
 							client_info.username, lpath_iter->second, openmode, ticket, &pw_streams.front()->stream()));
@@ -1127,14 +1128,14 @@ namespace
 				pw_context.streams = std::move(pw_streams);
 				pw_context.mtx = std::make_unique<std::mutex>();
 
-				res.body() =
-					json{
-						{"irods_response",
-				         {
-							 {"status_code", 0},
-						 }},
-						{"parallel_write_handle", transfer_handle}}
-						.dump();
+				// clang-format off
+				res.body() = json{
+					{"irods_response", {
+						{"status_code", 0}
+					}},
+					{"parallel_write_handle", transfer_handle}
+				}.dump();
+				// clang-format on
 			}
 			catch (const fs::filesystem_error& e) {
 				logging::error(*_sess_ptr, "{}: {}", fn, e.what());
@@ -1191,14 +1192,16 @@ namespace
 					return _sess_ptr->send(irods::http::fail(http::status::bad_request));
 				}
 
-				logging::debug(
-					*_sess_ptr, "{}: (shutdown) Parallel Write Handle = [{}].", fn, parallel_write_handle_iter->second);
+				logging::debug(*_sess_ptr, "{}: Parallel write handle = [{}]", fn, parallel_write_handle_iter->second);
 
 				{
 					std::scoped_lock lk{pwc_mtx};
 
 					const auto pw_iter = parallel_write_contexts.find(parallel_write_handle_iter->second);
 					if (pw_iter != std::end(parallel_write_contexts)) {
+						logging::trace(
+							*_sess_ptr, "{}: Closing secondary output streams. Skipping catalog update.", fn);
+
 						// Ignore the first stream. It must be closed last so that replication resources
 						// are triggered correctly.
 						auto end = std::prev(std::rend(pw_iter->second.streams));
@@ -1215,8 +1218,15 @@ namespace
 						}
 
 						// Allow the first stream to update the catalog.
+						logging::trace(
+							*_sess_ptr, "{}: Closing primary output stream and updating catalog information.", fn);
 						pw_iter->second.streams.front()->stream().close();
 
+						logging::trace(
+							*_sess_ptr,
+							"{}: Removing parallel write handle [{}].",
+							fn,
+							parallel_write_handle_iter->second);
 						parallel_write_contexts.erase(pw_iter);
 					}
 				}
