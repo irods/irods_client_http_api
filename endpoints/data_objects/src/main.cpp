@@ -115,8 +115,6 @@ namespace
 			}
 
 			if (!stream_) {
-				tp_.reset();
-				conn_.disconnect();
 				THROW(SYS_INTERNAL_ERR, fmt::format("Could not open output stream for [{}].", _path));
 			}
 		} // parallel_write_stream (constructor)
