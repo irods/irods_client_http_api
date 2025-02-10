@@ -2339,6 +2339,75 @@ class test_data_objects_endpoint(unittest.TestCase):
             })
             self.logger.debug(r.content)
 
+    def test_server_does_not_segfault_when_parallel_write_init_is_invoked_multiple_times_on_same_logical_path(self):
+        headers = {'Authorization': 'Bearer ' + self.rodsuser_bearer_token}
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/parallel_write_no_segfaults.txt'
+
+        # Indicates whether the parallel_write_shutdown operation needs to be called.
+        # This is used for clean up when errors occur.
+        invoke_parallel_write_shutdown = False
+
+        try:
+            # Start a parallel-write operation.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'parallel_write_init',
+                'lpath': data_object,
+                'stream-count': 2
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            parallel_write_handle = result['parallel_write_handle']
+
+            # Make sure the parallel_write_shutdown operation is invoked now that we
+            # have a parallel-write handle.
+            invoke_parallel_write_shutdown = True
+
+            # Show that invoking the operation a second time for the same data object
+            # no longer results in the server segfaulting. Instead, the server returns
+            # an error, as originally intended.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'parallel_write_init',
+                'lpath': data_object,
+                'stream-count': 2
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 500)
+
+        finally:
+            # End the parallel write in case something failed.
+            # This avoids leaking of parallel-write resources in the HTTP API server.
+            if invoke_parallel_write_shutdown:
+                r = requests.post(self.url_endpoint, headers=headers, data={
+                    'op': 'parallel_write_shutdown',
+                    'parallel-write-handle': parallel_write_handle
+                })
+                self.logger.debug(r.content)
+
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
+    def test_server_does_not_segfault_when_parallel_write_init_is_invoked_with_insufficient_permissions_on_logical_path(self):
+        headers = {'Authorization': 'Bearer ' + self.rodsuser_bearer_token}
+        data_object = f'/{self.zone_name}/home/{self.rodsadmin_username}/no_perms_no_segfaults.txt'
+
+        # Show that invoking the parallel_write_init operation fails with an error
+        # if the user does not have the appropriate permissions for opening the data object.
+        r = requests.post(self.url_endpoint, headers=headers, data={
+            'op': 'parallel_write_init',
+            'lpath': data_object,
+            'stream-count': 2
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 500)
+
 class test_information_endpoint(unittest.TestCase):
 
     @classmethod
