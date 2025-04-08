@@ -8,14 +8,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ 'ubuntu:20.04', 'ubuntu:22.04', 'ubuntu:24.04' ]
+        os: [ 'ubuntu:22.04', 'ubuntu:24.04' ]
         irods-version: [ 4.3.2, 4.3.3 ]
         exclude:
           - os: 'ubuntu:24.04'
             irods-version: 4.3.2
           - os: 'ubuntu:22.04'
-            irods-version: 4.3.3
-          - os: 'ubuntu:20.04'
             irods-version: 4.3.3
     runs-on: ubuntu-latest
     container: ${{ matrix.os }}
@@ -23,7 +21,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
       - name: Install Prerequisites
-        if: ${{ matrix.os != 'ubuntu:20.04' }}
         run:  |
               apt-get update -qq
               apt-get install -qq \
@@ -33,24 +30,10 @@ jobs:
                 wget \
                 g++-11 \
                 gcc-11 \
+                cmake \
                 libcurl4-gnutls-dev \
                 libssl-dev \
                 libssl3 \
-                ninja-build
-      - name: Install Prerequisites - Ubuntu 20.04
-        if: ${{ matrix.os == 'ubuntu:20.04' }}
-        run:  |
-              apt-get update -qq
-              apt-get install -qq \
-                apt-transport-https \
-                gnupg \
-                lsb-release \
-                wget \
-                g++-10 \
-                gcc-10 \
-                libcurl4-gnutls-dev \
-                libssl-dev \
-                libssl1.1 \
                 ninja-build
       - name: Install iRODS
         run:  |
@@ -67,7 +50,6 @@ jobs:
               apt-get update -qq
               apt-get install -qq \
                 irods-externals-clang13.0.1-0 \
-                irods-externals-cmake3.21.4-0 \
                 irods-externals-fmt-libcxx8.1.1-1 \
                 irods-externals-json3.10.4-0 \
                 irods-externals-jwt-cpp0.6.99.1-0 \
@@ -75,10 +57,8 @@ jobs:
                 irods-externals-spdlog-libcxx1.9.2-2
       - name: Configure CMake
         run:  |
-              export PATH=/opt/irods-externals/cmake3.21.4-0/bin:$PATH
               mkdir build
               cmake -GNinja -B build/ -S .
       - name: Build and Package
         run:  |
-              export PATH=/opt/irods-externals/cmake3.21.4-0/bin:$PATH
               cmake --build build/ -t package

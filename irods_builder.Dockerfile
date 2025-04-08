@@ -39,10 +39,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         apt-transport-https \
         g++-11 \
         gcc-11 \
+        cmake \
         irods-dev=${irods_version} \
         irods-runtime=${irods_version} \
         irods-externals-clang13.0.1-0 \
-        irods-externals-cmake3.21.4-0 \
         irods-externals-fmt-libcxx8.1.1-1 \
         irods-externals-json3.10.4-0 \
         irods-externals-jwt-cpp0.6.99.1-0 \
@@ -54,9 +54,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         ninja-build \
     && \
     rm -rf /tmp/*
-
-ARG cmake_path="/opt/irods-externals/cmake3.21.4-0/bin"
-ENV PATH=${cmake_path}:$PATH
 
 COPY --chmod=755 build_packages.sh /
 ENTRYPOINT ["/build_packages.sh"]
