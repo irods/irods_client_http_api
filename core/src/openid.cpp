@@ -134,8 +134,8 @@ namespace irods::http::openid
 		if (const auto aud_iter{json_res.find("aud")}; aud_iter != std::end(json_res)) {
 			logging::trace("{}: Attempting [aud] validation.", __func__);
 
-			const auto& client_id{irods::http::globals::oidc_configuration().at("client_id")};
-			const auto& aud{*aud_iter};
+			const nlohmann::json& client_id{irods::http::globals::oidc_configuration().at("client_id")};
+			const nlohmann::json& aud{*aud_iter};
 
 			if (aud.is_array()) {
 				auto aud_list_iter{aud.items()};
@@ -150,7 +150,7 @@ namespace irods::http::openid
 					return std::nullopt;
 				}
 			}
-			else if (aud.get_ref<const std::string&>() != client_id) {
+			else if (aud.get_ref<const std::string&>() != client_id.get_ref<const std::string&>()) {
 				logging::warn("{}: Could not find our [client_id] in [aud]. Validation failed.", __func__);
 				return std::nullopt;
 			}
@@ -171,7 +171,7 @@ namespace irods::http::openid
 		if (const auto iss_iter{json_res.find("iss")}; iss_iter != std::end(json_res)) {
 			logging::trace("{}: Attempting [iss] validation.", __func__);
 			if (iss_iter->get_ref<const std::string&>() !=
-			    irods::http::globals::oidc_endpoint_configuration().at("issuer")) {
+			    irods::http::globals::oidc_endpoint_configuration().at("issuer").get_ref<const std::string&>()) {
 				logging::warn("{}: [iss] did not match OpenID Provider's [issuer]. Validation failed.", __func__);
 				return std::nullopt;
 			}
