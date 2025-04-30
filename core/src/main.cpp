@@ -10,6 +10,7 @@
 #include <irods/connection_pool.hpp>
 #include <irods/fully_qualified_username.hpp>
 #include <irods/irods_configuration_keywords.hpp>
+#include <irods/irods_version.h>
 #include <irods/rcConnect.h>
 #include <irods/rcMisc.h>
 #include <irods/rodsClient.h>
@@ -739,7 +740,9 @@ auto init_tls(const json& _config) -> void
 	set_env_string("client_server_policy", irods::KW_CFG_IRODS_CLIENT_SERVER_POLICY, "CS_NEG_REFUSE");
 	set_env_string("ca_certificate_file", irods::KW_CFG_IRODS_SSL_CA_CERTIFICATE_FILE);
 	set_env_string("verify_server", irods::KW_CFG_IRODS_SSL_VERIFY_SERVER, "cert");
+#if (IRODS_VERSION_MAJOR == 4) && (IRODS_VERSION_MINOR < 90)
 	set_env_string("client_server_negotiation", irods::KW_CFG_IRODS_CLIENT_SERVER_NEGOTIATION, "request_server_negotiation");
+#endif
 	set_env_string("encryption_algorithm", irods::KW_CFG_IRODS_ENCRYPTION_ALGORITHM, "AES-256-CBC");
 
 	// NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers, readability-magic-numbers)
