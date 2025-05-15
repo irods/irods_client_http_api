@@ -29,6 +29,8 @@ namespace irods::http::openid
 		req.set(beast::http::field::user_agent, irods::http::version::server_name);
 		req.set(beast::http::field::content_type, "application/x-www-form-urlencoded");
 		req.set(beast::http::field::accept, "application/json");
+		req.keep_alive(false);
+		req.prepare_payload();
 
 		if (const auto secret_key{irods::http::globals::oidc_configuration().find("client_secret")};
 		    secret_key != std::end(irods::http::globals::oidc_configuration()))
@@ -214,6 +216,7 @@ namespace irods::http::openid
 		req.set(beast::http::field::host, irods::http::create_host_field(url, *port));
 		req.set(beast::http::field::user_agent, irods::http::version::server_name);
 		req.set(beast::http::field::accept, "application/json");
+		req.keep_alive(false);
 		req.prepare_payload();
 
 		// Send request and receive response

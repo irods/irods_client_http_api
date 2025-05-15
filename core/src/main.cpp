@@ -827,6 +827,8 @@ auto load_oidc_configuration(const json& _config, json& _oi_config, json& _endpo
 		beast::http::request<beast::http::string_body> req{beast::http::verb::get, path, http_version_number};
 		req.set(beast::http::field::host, irods::http::create_host_field(url, *port));
 		req.set(beast::http::field::user_agent, irods::http::version::server_name);
+		req.keep_alive(false);
+		req.prepare_payload();
 
 		// Sends and receives response
 		auto res{tcp_stream->communicate(req)};
