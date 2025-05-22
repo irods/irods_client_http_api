@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.5
 
-FROM rockylinux:8
+FROM rockylinux/rockylinux:8
 
 SHELL [ "/usr/bin/bash", "-c" ]
 
