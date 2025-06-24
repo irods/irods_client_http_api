@@ -30,68 +30,7 @@ Reauthentication can be performed at anytime and will result in a brand new toke
 
 ### Scheme: OpenID Connect (OIDC)
 
-For authenticating with OpenID Connect, there are three methods, two of which are run as clients:
-
-- Client-Based
-  - [Resource Owner Password Credentials Grant](#resource-owner-password-credentials-grant)
-  - [Authorization Code Grant](#authorization-code-grant)
-- [Protected Resource](#irods-as-an-oauth-protected-resource)
-
-#### Resource Owner Password Credentials Grant
-
-To run this client-based scheme, you must set `mode` in the `openid_connect` stanza to `client`.
-
-The core advantage of this grant is the flexibility in how it may be applied.
-
-Following is a brief example of authenticating from the command line.
-
-##### Request
-```bash
-username_and_password=$(echo -n "<username>:<password>" | base64 -)
-curl -X POST -H "Authorization: iRODS $username_and_password" \
-    http://localhost:<port>/irods-http-api/<version>/authenticate
-```
-
-##### Response
-A string representing a bearer token that can be used to execute operations as the authenticated user.
-
-#### Authorization Code Grant
-
-To run this client-based scheme, you must set `mode` in the `openid_connect` stanza to `client`.
-
-Using this grant requires a bit more work to extract the token.
-Authentication is done in the browser.
-
-##### Request
-```bash
-curl http://localhost:<port>/irods-http-api/<version>/authenticate -v
-```
-
-After running the previous command, you should see output similar to the following:
-```
-*   Trying [::1]:9000...
-* Connected to localhost (::1) port 9000
-> GET /irods-http-api/<version>/authenticate HTTP/1.1
-> Host: localhost:9000
-> User-Agent: curl/8.4.0
-> Accept: */*
-> 
-< HTTP/1.1 302 Found
-< Server: irods_http_api/<version> (<build_sha>)
-< Location: http://oidc.example.org/realms/example/protocol/openid-connect/auth?...
-< Content-Length: 0
-< 
-* Connection #0 to host localhost left intact
-```
-
-To authenticate, you need to head to the `Location` provided in the response.
-This will open a browser window that will allow you to authenticate in.
-
-##### Response
-The bearer token should be returned and viewable in the browser window after authenticating.
-
-#### iRODS as an OAuth Protected Resource
-To run as an OAuth protected resource, set `mode` in the `openid_connect` stanza to `protected_resource`.
+For authenticating with OpenID Connect, the HTTP API can be run as an OAuth Protected Resource.
 
 While running in this mode, the HTTP API does not provide any grants to which you can authenticate.
 Instead, you must implement an OAuth client yourself, authenticate, and provide an access token as a

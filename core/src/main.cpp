@@ -229,9 +229,6 @@ constexpr auto default_jsonschema() -> std::string_view
                                     "type": "string",
                                     "format": "uri"
                                 }},
-                                "mode": {{
-                                    "enum": ["client", "protected_resource"]
-                                }},
                                 "client_id": {{
                                     "type": "string"
                                 }},
@@ -241,15 +238,8 @@ constexpr auto default_jsonschema() -> std::string_view
                                 "access_token_secret": {{
                                     "type": "string"
                                 }},
-                                "nonstandard_id_token_secret": {{
-                                    "type": "string"
-                                }},
                                 "require_aud_member_from_introspection_endpoint": {{
                                     "type": "boolean"
-                                }},
-                                "redirect_uri": {{
-                                    "type": "string",
-                                    "format": "uri"
                                 }},
                                 "tls_certificates_directory": {{
                                     "type": "string"
@@ -274,28 +264,11 @@ constexpr auto default_jsonschema() -> std::string_view
                                 "timeout_in_seconds",
                                 "state_timeout_in_seconds",
                                 "provider_url",
-                                "mode",
                                 "client_id",
                                 "require_aud_member_from_introspection_endpoint",
-                                "redirect_uri",
                                 "tls_certificates_directory",
-                                "user_mapping"
-                            ],
-                            "anyOf": [
-                                {{
-                                    "not": {{
-                                        "properties": {{
-                                            "mode": {{
-                                                "const": "protected_resource"
-                                            }}
-                                        }}
-                                    }}
-                                }},
-                                {{
-                                    "required": [
-                                        "client_secret"
-                                    ]
-                                }}
+                                "user_mapping",
+                                "client_secret"
                             ]
                         }}
                     }},
@@ -520,9 +493,7 @@ auto print_configuration_template() -> void
                 "provider_url": "<string>",
                 "client_id": "<string>",
                 "client_secret": "<string>",
-                "mode": "client",
                 "require_aud_member_from_introspection_endpoint": false,
-                "redirect_uri": "<string>",
                 "user_mapping": {{
                     "plugin_path": "<string>",
                     "configuration": {{

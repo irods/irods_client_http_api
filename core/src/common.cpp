@@ -331,21 +331,13 @@ namespace irods::http
 			// attempting to access it. Without this logic, the server would crash.
 			static const auto oidc_conf_exists{
 				config.contains(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"})};
-			if (!oidc_conf_exists) {
-				logging::debug("{}: No 'openid_connect' stanza found in server configuration.", __func__);
-				logging::error("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
-				return {.response = fail(status_type::unauthorized)};
-			}
-
-			// If we're running as a protected resource, assume we have a OIDC token
-			if (irods::http::globals::oidc_configuration().at("mode").get_ref<const std::string&>() ==
-			    "protected_resource") {
+			if (oidc_conf_exists) {
 				nlohmann::json json_res;
 
 				// Try parsing token as JWT Access Token
 				try {
 					auto token{jwt::decode<jwt::traits::nlohmann_json>(bearer_token)};
-					auto possible_json_res{openid::validate_using_local_validation(openid::token_type::access, token)};
+					auto possible_json_res{openid::validate_using_local_validation(token)};
 
 					if (possible_json_res) {
 						json_res = *possible_json_res;
@@ -381,6 +373,7 @@ namespace irods::http
 				return {.response = fail(status_type::unauthorized)};
 			}
 
+			logging::debug("{}: No 'openid_connect' stanza found in server configuration.", __func__);
 			logging::error("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
 			return {.response = fail(status_type::unauthorized)};
 		}

@@ -14,12 +14,6 @@
 
 namespace irods::http::openid
 {
-	enum class token_type
-	{
-		access,
-		id
-	}; // enum class token_type
-
 	auto create_oidc_request(boost::urls::url_view _url)
 		-> boost::beast::http::request<boost::beast::http::string_body>;
 
@@ -40,12 +34,11 @@ namespace irods::http::openid
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA).
 	/// See OpenID Connect Core 1.0 for details on OpenID Connect (OIDC).
 	///
-	/// \param[in] _type A token_type representing the type of JWT to verify.
-	/// \param[in] _jwt  A jwt::decoded_jwt<jwt::traits::nlohmann_json> representing the JWT to verify.
+	/// \param[in] _jwt A jwt::decoded_jwt<jwt::traits::nlohmann_json> representing the JWT to verify.
 	///
 	/// \returns The set of claims contained in the JWT if the token can be validated. Otherwise, an empty std::optional
 	/// is returned
-	auto validate_using_local_validation(token_type _type, const jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt)
+	auto validate_using_local_validation(const jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt)
 		-> std::optional<nlohmann::json>;
 } //namespace irods::http::openid
 

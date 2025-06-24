@@ -229,10 +229,9 @@ namespace irods::http::openid
 	///
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA).
 	///
-	/// \param[in]     _type     A token_type representing the type of JWT to verify.
 	/// \param[in,out] _verifier The jwt_verifier to add additional verification algorithms to.
 	/// \param[in]     _alg      The signing algorithm requested by the signed JWT.
-	auto add_symmetric_algorithm(token_type _type, jwt_verifier& _verifier, std::string_view _alg) -> void
+	auto add_symmetric_algorithm(jwt_verifier& _verifier, std::string_view _alg) -> void
 	{
 		namespace logging = irods::http::log;
 
@@ -248,18 +247,10 @@ namespace irods::http::openid
 		// Use a access_token_secret if provided. It should be base64url encoded, as the key might
 		// not be ASCII printable.
 		if (auto access_token_secret{irods::http::globals::oidc_configuration().find("access_token_secret")};
-		    _type == token_type::access && access_token_secret != std::end(irods::http::globals::oidc_configuration()))
+		    access_token_secret != std::end(irods::http::globals::oidc_configuration()))
 		{
 			key = jwt::base::decode<jwt::alphabet::base64url>(
 				jwt::base::pad<jwt::alphabet::base64url>(access_token_secret->get_ref<const std::string&>()));
-		}
-		// Some OpenID Providers do not follow OpenID Connect Core 1.0 incorporating errata set 2,
-		// Section 3.1.3.7, Bullet Point 8. This variable would allow for non-standard behavior, if provided.
-		else if (auto id_token_secret{irods::http::globals::oidc_configuration().find("nonstandard_id_token_secret")};
-		         _type == token_type::id && id_token_secret != std::end(irods::http::globals::oidc_configuration()))
-		{
-			key = jwt::base::decode<jwt::alphabet::base64url>(
-				jwt::base::pad<jwt::alphabet::base64url>(id_token_secret->get_ref<const std::string&>()));
 		}
 		// While not for access tokens, ID Tokens are signed using the client_secret.
 		// Some OpenID providers may do the same for access tokens.
@@ -411,14 +402,12 @@ namespace irods::http::openid
 	///
 	/// See RFC 7518 for details on JSON Web Algorithms (JWA).
 	///
-	/// \param[in]     _type     A token_type representing the type of JWT to verify.
 	/// \param[in,out] _verifier The jwt_verifier to add additional verification algorithms to.
 	/// \param[in]     _jwks     The JWKs to search through.
 	/// \param[in]     _jwt      The decoded JWT that needs to be verified.
 	///
 	/// \returns A reference to the provided jwt_verifier, \p _verifier, allowing for chaining.
 	auto add_algorithms_to_verifier(
-		token_type _type,
 		jwt_verifier& _verifier,
 		const jwt::jwks<jwt::traits::nlohmann_json>& _jwks,
 		const jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt) -> jwt_verifier&
@@ -462,7 +451,7 @@ namespace irods::http::openid
 		}
 		// Symmetric algo (JWA Section 3.1)
 		else if (algorithm_family == "HS") {
-			add_symmetric_algorithm(_type, _verifier, alg);
+			add_symmetric_algorithm(_verifier, alg);
 			return _verifier;
 		}
 		// Not a valid or supported algorithm
@@ -520,7 +509,7 @@ namespace irods::http::openid
 		return _verifier;
 	} // add_algorithms_to_verifier
 
-	auto validate_using_local_validation(token_type _type, const jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt)
+	auto validate_using_local_validation(const jwt::decoded_jwt<jwt::traits::nlohmann_json>& _jwt)
 		-> std::optional<nlohmann::json>
 	{
 		namespace logging = irods::http::log;
@@ -541,16 +530,8 @@ namespace irods::http::openid
 			// Manually verify 'typ' matches what is specified in OJWT
 			// Allow for 'JWT'. Typical pre OJWT use had such claims, based on the JWT standard.
 			// See OJWT Section 4
-			if (_type == token_type::access &&
-			    !(token_type == "at+jwt" || token_type == "application/at+jwt" || token_type == "jwt"))
-			{
+			if (!(token_type == "at+jwt" || token_type == "application/at+jwt" || token_type == "jwt")) {
 				logging::error("{}: Access Token with [typ] of type [{}] is not supported.", __func__, token_type);
-				return std::nullopt;
-			}
-			// If we are validating an ID Token, we only care that the 'typ' is set to 'jwt',
-			// based on the JWT standard.
-			if (_type == token_type::id && token_type != "jwt") {
-				logging::error("{}: ID Token with [typ] of type [{}] is not supported.", __func__, token_type);
 				return std::nullopt;
 			}
 
@@ -588,30 +569,6 @@ namespace irods::http::openid
 				return std::nullopt;
 			}
 
-			// In validating OIDC ID Tokens, if a symmetric algorithm is used,
-			// the private key of the algorithm is not defined if the token has
-			// multiple 'aud'.
-			// See OIDC Section 3.1.3.7
-			if (_type == token_type::id && alg.substr(0, 2) == "HS") {
-				// Assert there is only one 'aud' member
-				if (_jwt.get_audience().size() > 1) {
-					logging::error("{}: ID Token with symmetric [alg] and multiple [aud] is not supported.", __func__);
-					return std::nullopt;
-				}
-			}
-
-			// In validating OIDC ID Tokens, if the 'azp' claim is present,
-			// we may verify that our 'client_id' is in the claim.
-			// See OIDC Section 3.1.3.7
-			if (_type == token_type::id && _jwt.has_payload_claim("azp")) {
-				if (_jwt.get_payload_claim("azp").as_string() !=
-				    irods::http::globals::oidc_configuration().at("client_id").get_ref<const std::string&>())
-				{
-					logging::error("{}: ID Token [azp] does not contain [client_id].", __func__);
-					return std::nullopt;
-				}
-			}
-
 			// Reject JWT with JWS 'crit', we do not support extensions using 'crit' at this moment
 			// See JWS Section 4.1.11
 			if (_jwt.has_header_claim("crit")) {
@@ -632,7 +589,7 @@ namespace irods::http::openid
 					.with_audience(
 						irods::http::globals::oidc_configuration().at("client_id").get_ref<const std::string&>())};
 
-			add_algorithms_to_verifier(_type, verifier, jwks, _jwt);
+			add_algorithms_to_verifier(verifier, jwks, _jwt);
 
 			// Attempt token validation
 			std::error_code ec;

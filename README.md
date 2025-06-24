@@ -250,27 +250,11 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
                 // If provided, it MUST be base64url encoded.
                 "access_token_secret": "xxxxxxxxxxxxxxx",
 
-                // The secret used when validating an OpenID Connect ID Token
-                // signed with a symmetric algorithm (e.g. HS256).
-                // Used if provided, otherwise, defaults to validating
-                // with "client_secret".
-                // If provided, it MUST be base64url encoded.
-                "nonstandard_id_token_secret": "xxxxxxxxxxxxxxx",
-
                 // Controls whether the HTTP API requires the presence of the
                 // "aud" member in the introspection endpoint response. If set
                 // to true and the "aud" member is NOT present, the provided
                 // access token will be rejected.
                 "require_aud_member_from_introspection_endpoint": false,
-
-                // The OIDC mode the HTTP API will run as.
-                // The following values are supported:
-                // - client:              Run the HTTP API as an OIDC client
-                // - protected_resource:  Run as an OAuth Protected Resource
-                "mode": "client",
-
-                // URI pointing to the irods HTTP API auth endpoint.
-                "redirect_uri": "https://<domain>/irods-http-api/<version>/authenticate",
 
                 // The amount of time before the OIDC Authorization Code grant
                 // times out, requiring another attempt at authentication.
@@ -482,10 +466,6 @@ in the configuration parameter, as this is included automatically.
 The OpenID Provider must be running prior to starting the HTTP API server, otherwise, the HTTP API server
 will not be able to query the required information from the desired OpenID Provider.
 
-Additionally, the OIDC `redirect_uri` parameter must be set to the HTTP API's authentication endpoint.
-This is required, as the Authorization Code Grant needs to be redirected back to the HTTP API, to complete
-HTTP API token generation.
-
 ### Mapping OpenID Users to iRODS
 
 Before you can use OpenID with iRODS, you must enable one of the two shipped plugins, or develop your own to suit your specific needs.
@@ -549,17 +529,3 @@ In this particular example, `claim_to_map_user` is the claim that maps the OpenI
 
 To develop your own plugin, make sure to conform to the plugin interface defined in [interface.h](./plugins/user_mapping/include/irods/http_api/plugins/user_mapping/interface.h).
 Further documentation on the interface functions are within the file.
-
-### Supported Grants
-
-Currently, the HTTP API server supports the following two grants:
-
-- Resource Owner Password Credentials Grant
-- Authorization Code Grant
-
-While we also currently support the _Resource Owner Password Credentials Grant_, there are plans to remove
-support for this in the future.
-
-Reason being, the [OAuth 2.0 Security Best Current Practice](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-security-topics) draft,
-as well as the the [OAuth 2.1 Authorization Framework](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/) draft both deprecate that grant.
-More information can be found on the reasoning for the deprecation in the links provided above.
