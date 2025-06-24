@@ -37,6 +37,11 @@ namespace irods::http
 			return stream_;
 		} // stream
 
+		auto timeout_in_seconds() const noexcept -> int
+		{
+			return timeout_in_secs_;
+		} // timeout_in_seconds
+
 		template <bool isRequest, class Body, class Fields>
 		auto send(boost::beast::http::message<isRequest, Body, Fields>&& msg) -> void
 		{
