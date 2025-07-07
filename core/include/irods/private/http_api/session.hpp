@@ -24,9 +24,10 @@ namespace irods::http
 
 		auto run() -> void;
 
-		auto do_read() -> void;
+		auto do_read_header() -> void;
+		auto on_read_header(boost::beast::error_code ec, std::size_t bytes_transferred) -> void;
 
-		auto on_read(boost::beast::error_code ec, std::size_t bytes_transferred) -> void;
+		auto on_read_body(boost::beast::error_code ec, std::size_t bytes_transferred) -> void;
 
 		auto on_write(bool close, boost::beast::error_code ec, std::size_t bytes_transferred) -> void;
 
@@ -36,6 +37,16 @@ namespace irods::http
 		{
 			return stream_;
 		} // stream
+
+		auto buffer() -> boost::beast::flat_buffer&
+		{
+			return buffer_;
+		} // buffer
+
+		auto parser() -> std::optional<boost::beast::http::request_parser<boost::beast::http::string_body>>&
+		{
+			return parser_;
+		} // parser
 
 		template <bool isRequest, class Body, class Fields>
 		auto send(boost::beast::http::message<isRequest, Body, Fields>&& msg) -> void

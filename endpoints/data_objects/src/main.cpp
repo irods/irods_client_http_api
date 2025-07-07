@@ -491,6 +491,158 @@ namespace
 		const bool is_parallel_write_;
 	}; // incremental_write
 
+	class streaming_write : public std::enable_shared_from_this<streaming_write>
+	{
+	  public:
+		streaming_write(
+			irods::http::session_pointer_type& _sess_ptr,
+			unsigned int _http_version,
+			bool _http_keep_alive,
+			irods::http::connection_facade _conn,
+			std::unique_ptr<io::client::native_transport> _tp,
+			std::unique_ptr<io::odstream> _out,
+			io::odstream* _out_ptr,
+			std::unique_ptr<irods::at_scope_exit<std::function<void()>>> _mark_pw_stream_as_usable,
+			std::int64_t _max_bytes_per_write,
+			bool _is_parallel_write)
+			: sess_ptr_{_sess_ptr->shared_from_this()}
+			, res_{http::status::ok, _http_version}
+			, bb_parser_{std::move(*sess_ptr_->parser())}
+			, conn_{std::move(_conn)}
+			, tp_{std::move(_tp)}
+			, out_{std::move(_out)}
+			, out_ptr_{_out_ptr}
+			, mark_pw_stream_as_usable_{std::move(_mark_pw_stream_as_usable)}
+			, buffer_(_max_bytes_per_write)
+			, is_parallel_write_{_is_parallel_write}
+		{
+			res_.set(http::field::server, irods::http::version::server_name);
+			res_.set(http::field::content_type, "application/json");
+			res_.keep_alive(_http_keep_alive);
+		} // constructor
+
+		auto start() -> void
+		{
+			stream_bytes_from_client();
+		} // start
+
+	  private:
+		auto stream_bytes_from_client() -> void
+		{
+			try {
+				logging::trace(
+					*sess_ptr_, "{}: Reading bytes from socket/client and filling internal buffer.", __func__);
+
+				if (!bb_parser_.is_done()) {
+					// Set up the body for writing into our internal buffer.
+					bb_parser_.get().body().data = buffer_.data();
+					bb_parser_.get().body().size = buffer_.size();
+
+					http::async_read(
+						sess_ptr_->stream(),
+						sess_ptr_->buffer(),
+						bb_parser_,
+						[self = shared_from_this(), fn = __func__](
+							beast::error_code _ec, std::size_t _bytes_transferred) mutable {
+							if (http::error::need_buffer == _ec) {
+								_ec = {};
+								logging::trace(
+									*self->sess_ptr_,
+									"{}: Read [{}] bytes from socket/client. Expecting more data.",
+									fn,
+									_bytes_transferred);
+							}
+
+							if (_ec) {
+								logging::error(
+									*self->sess_ptr_,
+									"{}: Error while reading bytes from client socket; error=[{}]",
+									fn,
+									_ec.message());
+								return self->sess_ptr_->send(
+									irods::http::fail(self->res_, http::status::internal_server_error));
+							}
+
+							self->stream_bytes_to_irods();
+						});
+				}
+				else {
+					bb_parser_.get().body().data = nullptr;
+					bb_parser_.get().body().size = 0;
+
+					// If we're performing a normal write, close the stream before returning a response.
+					// This is required so that the iRODS server triggers appropriate policy before handing
+					// back control to the client. For example, replication resources and synchronous replication.
+					if (!is_parallel_write_) {
+						out_ptr_->close();
+					}
+
+					res_.body() = json{{"irods_response", {{"status_code", 0}}}}.dump();
+					res_.prepare_payload();
+					sess_ptr_->send(std::move(res_));
+				}
+			}
+			catch (const std::exception& e) {
+				logging::error(*sess_ptr_, "{}: {}", __func__, e.what());
+				return sess_ptr_->send(irods::http::fail(res_, http::status::internal_server_error));
+			}
+		} // stream_bytes_from_client
+
+		auto stream_bytes_to_irods() -> void
+		{
+			irods::http::globals::background_task([self = shared_from_this(), fn = __func__]() mutable {
+				try {
+					if (!*self->out_ptr_) {
+						logging::error(
+							*self->sess_ptr_,
+							"{}: Output stream is in a bad state. Client should restart the entire transfer.",
+							fn);
+						return self->sess_ptr_->send(
+							irods::http::fail(self->res_, http::status::internal_server_error));
+					}
+
+					const auto to_send = self->buffer_.size() - self->bb_parser_.get().body().size;
+					logging::debug(*self->sess_ptr_, "{}: Writing [{}] bytes to the data object.", fn, to_send);
+					self->out_ptr_->write(self->buffer_.data(), to_send);
+
+					return self->stream_bytes_from_client();
+				}
+				catch (const json::exception& e) {
+					logging::error(*self->sess_ptr_, "{}: {}", fn, e.what());
+					return self->sess_ptr_->send(irods::http::fail(self->res_, http::status::internal_server_error));
+				}
+				catch (const std::exception& e) {
+					logging::error(*self->sess_ptr_, "{}: {}", fn, e.what());
+					return self->sess_ptr_->send(irods::http::fail(self->res_, http::status::internal_server_error));
+				}
+			});
+		} // stream_bytes_to_irods
+
+		// The following member variables represent state initialized by op_streaming_write.
+		// Instances of this class require the state to last until after the final write
+		// operation completes or an error occurs, whichever happens first.
+		//
+		// Instances of this class own all state passed from op_write.
+
+		irods::http::session_pointer_type sess_ptr_;
+		http::response<http::string_body> res_;
+		http::request_parser<http::buffer_body> bb_parser_;
+
+		irods::http::connection_facade conn_;
+		std::unique_ptr<io::client::native_transport> tp_;
+		std::unique_ptr<io::odstream> out_;
+		io::odstream* out_ptr_;
+
+		// A callable for signaling when a parallel-write stream is available for use.
+		std::unique_ptr<irods::at_scope_exit<std::function<void()>>> mark_pw_stream_as_usable_;
+
+		// The data to write to iRODS and information for tracking progress.
+		std::vector<char> buffer_;
+
+		// Indicates whether the client is performing a parallel write.
+		const bool is_parallel_write_;
+	}; // streaming_write
+
 	//
 	// Operation handler implementations
 	//
@@ -2402,3 +2554,243 @@ namespace
 		});
 	} // op_modify_replica
 } // anonymous namespace
+
+namespace irods::http::endpoint_operation
+{
+	// This operation is a more efficient version of the original "write" operation provided by the
+	// /data-objects endpoint. It requires a special code path in session.cpp because it can only be
+	// triggered through the use of HTTP headers.
+	//
+	// The main benefit of this alternative implementation is that it leads to improved memory usage
+	// and network usage. Clients will most certainly prefer this style of writing to a data object
+	// because it can also lead to faster data transfers.
+	auto op_write_streaming(irods::http::session_pointer_type _sess_ptr) -> void
+	{
+		const auto& req = _sess_ptr->parser()->get();
+
+		auto result = irods::http::resolve_client_identity(req);
+		if (result.response) {
+			return _sess_ptr->send(std::move(*result.response));
+		}
+
+		const auto client_info = result.client_info;
+
+		logging::info(*_sess_ptr, "{}: client_info.username = [{}]", __func__, client_info.username);
+
+		::http::response<::http::string_body> res{::http::status::ok, req.version()};
+		res.set(::http::field::server, irods::http::version::server_name);
+		res.set(::http::field::content_type, "application/json");
+		res.keep_alive(req.keep_alive());
+
+		try {
+			// Used to determine whether the data object should be closed following the write
+			// operation or by the parallel_write_shutdown HTTP API operation.
+			bool is_parallel_write = false;
+
+			irods::http::connection_facade conn;
+			std::unique_ptr<io::client::native_transport> tp;
+
+			std::unique_ptr<io::odstream> out;
+			io::odstream* out_ptr{};
+
+			const auto& headers = req.base();
+			const auto parallel_write_handle_iter = headers.find("irods-api-request-parallel-write-handle");
+
+			using at_scope_exit_type = irods::at_scope_exit<std::function<void()>>;
+			std::unique_ptr<at_scope_exit_type> mark_pw_stream_as_usable;
+
+			if (parallel_write_handle_iter != std::end(headers)) {
+				logging::debug(
+					*_sess_ptr,
+					"{}: (write) Parallel Write Handle = [{}].",
+					__func__,
+					parallel_write_handle_iter->value());
+
+				decltype(parallel_write_contexts)::iterator iter;
+
+				{
+					std::shared_lock lk{pwc_mtx};
+
+					iter = parallel_write_contexts.find(parallel_write_handle_iter->value());
+					if (iter == std::end(parallel_write_contexts)) {
+						logging::error(*_sess_ptr, "{}: Invalid handle for parallel write.", __func__);
+						return _sess_ptr->send(irods::http::fail(res, ::http::status::bad_request));
+					}
+				}
+
+				//
+				// We've found a matching handle!
+				//
+
+				is_parallel_write = true;
+
+				if (const auto stream_index_iter = headers.find("irods-api-request-stream-index");
+				    stream_index_iter != std::end(headers))
+				{
+					logging::debug(
+						*_sess_ptr,
+						"{}: Client selected [{}] for [stream-index] parameter.",
+						__func__,
+						stream_index_iter->value());
+
+					try {
+						const auto sindex = std::stoi(stream_index_iter->value());
+						out_ptr = &iter->second.streams.at(sindex)->stream();
+					}
+					catch (const std::exception& e) {
+						logging::error(*_sess_ptr, "{}: Invalid argument for [stream-index] parameter.", __func__);
+						return _sess_ptr->send(irods::http::fail(res, ::http::status::bad_request));
+					}
+				}
+				else {
+					auto* pw_stream = iter->second.find_available_parallel_write_stream();
+					if (!pw_stream) {
+						logging::error(
+							*_sess_ptr,
+							"{}: Parallel write streams are busy. Client must wait for one to become available.",
+							__func__);
+						return _sess_ptr->send(irods::http::fail(res, ::http::status::too_many_requests));
+					}
+
+					mark_pw_stream_as_usable =
+						std::make_unique<at_scope_exit_type>([pw_stream] { pw_stream->in_use(false); });
+
+					out_ptr = &pw_stream->stream();
+				}
+
+				logging::debug(
+					*_sess_ptr,
+					"{}: (write) Parallel Write - stream memory address = [{}].",
+					__func__,
+					fmt::ptr(out_ptr));
+			}
+			else {
+				const auto lpath_iter = headers.find("irods-api-request-lpath");
+				if (lpath_iter == std::end(headers)) {
+					logging::error(*_sess_ptr, "{}: Missing [lpath] parameter.", __func__);
+					return _sess_ptr->send(irods::http::fail(res, ::http::status::bad_request));
+				}
+
+				auto openmode = std::ios_base::out;
+
+				if (const auto iter = headers.find("irods-api-request-truncate");
+				    iter != std::end(headers) && iter->value() == "0")
+				{
+					openmode |= std::ios_base::in;
+				}
+
+				if (const auto iter = headers.find("irods-api-request-append");
+				    iter != std::end(headers) && iter->value() == "1")
+				{
+					openmode |= std::ios_base::app;
+				}
+
+				logging::trace(*_sess_ptr, "{}: Opening data object [{}] for write.", __func__, lpath_iter->value());
+				logging::trace(*_sess_ptr, "{}: (write) Initializing for single buffer write.", __func__);
+
+				conn = irods::get_connection(client_info.username);
+
+				// Enable ticket if the request includes one.
+				if (const auto iter = headers.find("irods-api-request-ticket"); iter != std::end(headers)) {
+					if (const auto ec = irods::enable_ticket(conn, iter->value()); ec < 0) {
+						res.result(::http::status::internal_server_error);
+						res.body() =
+							json{{"irods_response",
+						          {{"status_code", ec}, {"status_message", "Error enabling ticket on connection."}}}}
+								.dump();
+						res.prepare_payload();
+						return _sess_ptr->send(std::move(res));
+					}
+				}
+
+				tp = std::make_unique<io::client::native_transport>(conn);
+
+				if (const auto iter = headers.find("irods-api-request-resource"); iter != std::end(headers)) {
+					out = std::make_unique<io::odstream>(
+						*tp,
+						std::string{lpath_iter->value()},
+						io::root_resource_name{std::string{iter->value()}},
+						openmode);
+				}
+				else {
+					out = std::make_unique<io::odstream>(*tp, std::string{lpath_iter->value()}, openmode);
+				}
+
+				out_ptr = out.get();
+			}
+
+			if (!*out_ptr) {
+				logging::error(*_sess_ptr, "{}: Could not open data object for write.", __func__);
+				res.result(::http::status::internal_server_error);
+				res.prepare_payload();
+				return _sess_ptr->send(std::move(res));
+			}
+
+			auto iter = headers.find("irods-api-request-offset");
+			if (iter != std::end(headers)) {
+				logging::trace(*_sess_ptr, "{}: Setting offset for write.", __func__);
+				try {
+					out_ptr->seekp(std::stoll(iter->value()));
+				}
+				catch (const std::exception& e) {
+					logging::error(
+						*_sess_ptr, "{}: Could not seek to position [{}] in data object.", __func__, iter->value());
+					res.result(::http::status::bad_request);
+					res.prepare_payload();
+					return _sess_ptr->send(std::move(res));
+				}
+			}
+
+			static const auto max_number_of_bytes_per_write =
+				irods::http::globals::configuration()
+					.at(json::json_pointer{"/irods_client/max_number_of_bytes_per_write_operation"})
+					.get<std::int64_t>();
+
+			// clang-format off
+			std::make_shared<streaming_write>(
+				_sess_ptr,
+				req.version(),
+				req.keep_alive(),
+				std::move(conn),
+				std::move(tp),
+				std::move(out),
+				out_ptr,
+				std::move(mark_pw_stream_as_usable),
+				max_number_of_bytes_per_write,
+				is_parallel_write)->start();
+			// clang-format off
+		}
+		catch (const fs::filesystem_error& e) {
+			logging::error(*_sess_ptr, "{}: {}", __func__, e.what());
+			// clang-format off
+			res.body() = json{
+				{"irods_response", {
+					{"status_code", e.code().value()},
+					{"status_message", e.what()}
+				}}
+			}.dump();
+			// clang-format on
+			res.prepare_payload();
+			_sess_ptr->send(std::move(res));
+		}
+		catch (const irods::exception& e) {
+			logging::error(*_sess_ptr, "{}: {}", __func__, e.client_display_what());
+			// clang-format off
+			res.body() = json{
+				{"irods_response", {
+					{"status_code", e.code()},
+					{"status_message", e.client_display_what()}
+				}}
+			}.dump();
+			// clang-format on
+			res.prepare_payload();
+			_sess_ptr->send(std::move(res));
+		}
+		catch (const std::exception& e) {
+			logging::error(*_sess_ptr, "{}: {}", __func__, e.what());
+			res.result(::http::status::internal_server_error);
+			res.prepare_payload();
+			_sess_ptr->send(std::move(res));
+		}
+	} // op_write_streaming
+} // namespace irods::http::endpoint_operation
