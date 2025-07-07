@@ -71,6 +71,7 @@ WarningsAsErrors:
     readability-*,
     -readability-avoid-const-params-in-decls,
     -readability-function-cognitive-complexity,
+    -readability-identifier-length,
     -readability-implicit-bool-conversion,
     -readability-magic-numbers,
     -readability-named-parameter
