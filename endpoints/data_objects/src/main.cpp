@@ -18,6 +18,7 @@
 #include <irods/filesystem/path_utilities.hpp>
 #include <irods/irods_at_scope_exit.hpp>
 #include <irods/irods_exception.hpp>
+#include <irods/irods_version.h>
 #include <irods/key_value_proxy.hpp>
 #include <irods/modDataObjMeta.h>
 #include <irods/phyPathReg.h>
@@ -26,6 +27,11 @@
 #include <irods/rodsKeyWdDef.h>
 #include <irods/ticketAdmin.h>
 #include <irods/touch.h>
+
+#ifdef IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+#  include <irods/authenticate.h>
+#  include <irods/irods_auth_constants.hpp> // For AUTH_PASSWORD_KEY.
+#endif // IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
 
 #include <irods/transport/default_transport.hpp>
 #include <irods/dstream.hpp>
@@ -93,7 +99,19 @@ namespace
 
 			auto password = rodsadmin.at("password").get<std::string>();
 
-			if (clientLoginWithPassword(static_cast<RcComm*>(conn_), password.data()) != 0) {
+#ifdef IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+			// clang-format off
+			const auto ec = rc_authenticate_client(
+				static_cast<RcComm*>(conn_),
+				nlohmann::json{
+					{"scheme", "native"},
+					{irods::AUTH_PASSWORD_KEY, password},
+				}.dump().c_str());
+			// clang-format on
+#else
+			const auto ec = clientLoginWithPassword(static_cast<RcComm*>(conn_), password.data());
+#endif // IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+			if (ec != 0) {
 				conn_.disconnect();
 				THROW(SYS_INTERNAL_ERR, "Could not connect to iRODS server as proxied user.");
 			}
@@ -645,8 +663,19 @@ namespace
 							{rodsadmin_username, zone},
 							{client_info.username, zone});
 
+#ifdef IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+						// clang-format off
+						const auto ec = rc_authenticate_client(
+							static_cast<RcComm*>(dedicated_conn),
+							nlohmann::json{
+								{"scheme", "native"},
+								{irods::AUTH_PASSWORD_KEY, rodsadmin_password},
+							}.dump().c_str());
+						// clang-format on
+#else
 						const auto ec =
 							clientLoginWithPassword(static_cast<RcComm*>(dedicated_conn), rodsadmin_password.data());
+#endif // IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
 						if (ec < 0) {
 							logging::error(
 								*_sess_ptr, "{}: Could not create dedicated connection for read operation.", fn);

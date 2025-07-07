@@ -13,12 +13,18 @@
 #include <irods/client_connection.hpp>
 #include <irods/irods_at_scope_exit.hpp>
 #include <irods/irods_exception.hpp>
+#include <irods/irods_version.h>
 #include <irods/rcConnect.h>
 #include <irods/rcMisc.h> // For addKeyVal().
 #include <irods/rodsErrorTable.h>
 #include <irods/rodsKeyWdDef.h> // For KW_CLOSE_OPEN_REPLICAS.
 #include <irods/switch_user.h>
 #include <irods/ticketAdmin.h>
+
+#ifdef IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+#  include <irods/authenticate.h>
+#  include <irods/irods_auth_constants.hpp> // For AUTH_PASSWORD_KEY.
+#endif // IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
 
 #include <boost/any.hpp>
 #include <boost/asio.hpp>
@@ -595,9 +601,21 @@ namespace irods
 
 			auto* conn_ptr = static_cast<RcComm*>(conn);
 
-			if (const auto ec = clientLoginWithPassword(conn_ptr, rodsadmin_password.data()); ec < 0) {
-				logging::error("{}: clientLoginWithPassword error: {}", __func__, ec);
-				THROW(SYS_INTERNAL_ERR, "clientLoginWithPassword error.");
+#ifdef IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+			// clang-format off
+			const auto ec = rc_authenticate_client(
+				conn_ptr,
+				nlohmann::json{
+					{"scheme", "native"},
+					{irods::AUTH_PASSWORD_KEY, rodsadmin_password},
+				}.dump().c_str());
+			// clang-format on
+#else
+			const auto ec = clientLoginWithPassword(conn_ptr, rodsadmin_password.data());
+#endif // IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+			if (ec < 0) {
+				logging::error("{}: Authentication error while obtaining iRODS connection from pool: {}", __func__, ec);
+				THROW(SYS_INTERNAL_ERR, "Authentication error while obtaining iRODS connection from pool.");
 			}
 
 			return irods::http::connection_facade{std::move(conn)};

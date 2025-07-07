@@ -5,7 +5,8 @@ cmake_minimum_required(VERSION 3.18.0 FATAL_ERROR)
 #
 
 set(IRODS_MINIMUM_VERSION "4.3.2")
-find_package(IRODS "${IRODS_MINIMUM_VERSION}" REQUIRED)
+set(IRODS_MAXIMUM_VERSION "6.0.0")
+find_package(IRODS "${IRODS_MINIMUM_VERSION}...<${IRODS_MAXIMUM_VERSION}" REQUIRED)
 
 include(RequireOutOfSourceBuild)
 
@@ -59,6 +60,13 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 add_compile_options(-Wall -Wextra -Wpedantic)
+
+if (IRODS_VERSION VERSION_GREATER_EQUAL 4.90.0)
+  # TODO(irods/irods#8580): Remove once library_features.h provides macros to detect the new functions.
+  # iRODS 5 deprecates the clientLogin-family of functions and introduces new support functions for
+  # authentication. This macro signals that the new functions are available.
+  add_compile_definitions(IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5)
+endif()
 
 option(IRODS_ENABLE_ADDRESS_SANITIZER "Enables detection of memory leaks and other features provided by Address Sanitizer." OFF)
 if (IRODS_ENABLE_ADDRESS_SANITIZER)

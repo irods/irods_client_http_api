@@ -15,6 +15,11 @@
 #include <irods/rcMisc.h>
 #include <irods/rodsClient.h>
 
+#ifdef IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+#  include <irods/authenticate.h>
+#  include <irods/irods_auth_constants.hpp> // For AUTH_PASSWORD_KEY.
+#endif // IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+
 #include <boost/beast/core.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/http.hpp>
@@ -711,7 +716,7 @@ auto init_tls(const json& _config) -> void
 	set_env_string("client_server_policy", irods::KW_CFG_IRODS_CLIENT_SERVER_POLICY, "CS_NEG_REFUSE");
 	set_env_string("ca_certificate_file", irods::KW_CFG_IRODS_SSL_CA_CERTIFICATE_FILE);
 	set_env_string("verify_server", irods::KW_CFG_IRODS_SSL_VERIFY_SERVER, "cert");
-#if (IRODS_VERSION_MAJOR == 4) && (IRODS_VERSION_MINOR < 90)
+#ifndef IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
 	set_env_string("client_server_negotiation", irods::KW_CFG_IRODS_CLIENT_SERVER_NEGOTIATION, "request_server_negotiation");
 #endif
 	set_env_string("encryption_algorithm", irods::KW_CFG_IRODS_ENCRYPTION_ALGORITHM, "AES-256-CBC");
@@ -756,7 +761,19 @@ auto init_irods_connection_pool(const json& _config) -> std::unique_ptr<irods::c
 		irods::experimental::fully_qualified_username{username, zone},
 		irods::experimental::fully_qualified_username{username, zone},
 		[pw = rodsadmin.at("password").get<std::string>()](RcComm& _comm) mutable {
-			if (const auto ec = clientLoginWithPassword(&_comm, pw.data()); ec != 0) {
+#ifdef IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+			// clang-format off
+			const auto ec = rc_authenticate_client(
+				&_comm,
+				nlohmann::json{
+					{"scheme", "native"},
+					{irods::AUTH_PASSWORD_KEY, pw},
+				}.dump().c_str());
+			// clang-format on
+#else
+			const auto ec = clientLoginWithPassword(&_comm, pw.data());
+#endif // IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+			if (ec != 0) {
 				throw std::invalid_argument{fmt::format("Could not authenticate rodsadmin user: [{}]", ec)};
 			}
 		},
