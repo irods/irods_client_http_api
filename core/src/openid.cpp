@@ -255,13 +255,6 @@ namespace irods::http::openid
 			key = jwt::base::decode<jwt::alphabet::base64url>(
 				jwt::base::pad<jwt::alphabet::base64url>(access_token_secret->get_ref<const std::string&>()));
 		}
-		// While not for access tokens, ID Tokens are signed using the client_secret.
-		// Some OpenID providers may do the same for access tokens.
-		else if (auto secret{irods::http::globals::oidc_configuration().find("client_secret")};
-		         secret != std::end(irods::http::globals::oidc_configuration()))
-		{
-			key = secret->get<std::string>();
-		}
 		else {
 			logging::warn("{}: No secret provided. Unable to use symmetric algorithms.", __func__);
 			return;
