@@ -17,10 +17,6 @@
 #include <iterator>
 #include <utility>
 
-#ifdef IRODS_WRITE_REQUEST_TO_TEMP_FILE
-#  include <fstream>
-#endif
-
 namespace irods::http::endpoint_operation
 {
 	// This forward declaration is needed for streaming write operations.
@@ -119,9 +115,6 @@ namespace irods::http
 		namespace http = boost::beast::http;
 
 		try {
-#ifdef IRODS_WRITE_REQUEST_TO_TEMP_FILE
-			std::ofstream{"/tmp/http_request.txt"}.write(req_.body().c_str(), (std::streamsize) req_.body().size());
-#endif
 			if (req_.method() == http::verb::post) {
 				const auto res = boost::urls::parse_origin_form(req_.target());
 				if (res && res->segments().back() == "data-objects") {
@@ -175,9 +168,6 @@ namespace irods::http
 		namespace http = boost::beast::http;
 
 		try {
-#ifdef IRODS_WRITE_REQUEST_TO_TEMP_FILE
-			std::ofstream{"/tmp/http_request.txt"}.write(req_.body().c_str(), (std::streamsize) req_.body().size());
-#endif
 			// "host" is a placeholder that's used so that get_url_path() can parse the URL correctly.
 			const auto path = irods::http::get_url_path(fmt::format("http://host{}", req_.target()));
 			if (!path) {
