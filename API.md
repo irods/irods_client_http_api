@@ -870,9 +870,13 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Writes bytes to a data object.
 
+This operation supports two methods of sending data to the HTTP API server. **Method 2** is the recommended method.
+
 #### Request
 
 HTTP Method: POST
+
+##### Method 1
 
 ```bash
 curl http://localhost:<port>/irods-http-api/<version>/data-objects \
@@ -888,9 +892,33 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     [-F,--data-urlencode] 'stream-index=<integer>' # The stream to use when writing in parallel. Optional.
 ```
 
-This is the full set of parameters supported by the operation.
+This method is the original implementation. It sends all information via the HTTP request body. The HTTP API server will buffer the full request before processing it.
 
-When sending large amounts of data or writing in parallel, prefer multipart/form-data over application/x-www-form-urlencoded as the Content-Type.
+When sending large amounts of data or writing in parallel, multipart/form-data (`-F`) is recommended over application/x-www-form-urlencoded (`--data-urlencode`) as the Content-Type.
+
+##### Method 2
+
+```bash
+curl http://localhost:<port>/irods-http-api/<version>/data-objects \
+    -H 'Authorization: Bearer <token>' \
+    -H 'irods-api-request-op=write' \
+    -H 'irods-api-request-lpath=<string>' \ # Absolute logical path to a data object.
+    -H 'irods-api-request-resource=<string>' \ # The root resource to write to. Optional.
+    -H 'irods-api-request-offset=<integer>' \ # Number of bytes to skip. Defaults to 0. Optional.
+    -H 'irods-api-request-truncate=<integer>' \ # 0 or 1. Defaults to 1. Truncates the data object before writing. Optional.
+    -H 'irods-api-request-append=<integer>' \ # 0 or 1. Defaults to 0. Appends the bytes to the data object. Optional.
+    -H 'irods-api-request-parallel-write-handle=<string>' \ # The handle to use when writing in parallel. Optional.
+    -H 'irods-api-request-stream-index=<integer>' \ # The stream to use when writing in parallel. Optional.
+    --data-binary '<bytes>' # The bytes to write.
+```
+
+Information which describes the operation is sent via HTTP headers and the data to write to the data object is sent in the body of the request. This difference results in improved memory usage and can lead to faster transfers. It is easier to implement for clients as well.
+
+Unlike method 1, this method does not buffer the full request before processing it. Data is written to the iRODS server as soon as it is received by the HTTP API server.
+
+No adjustments to the Content-Type are necessary.
+
+#### Notes
 
 `parallel-write-handle` and `stream-index` only apply when writing to a replica in parallel. To obtain a parallel-write-handle, see [parallel_write_init](#parallel_write_init).
 
