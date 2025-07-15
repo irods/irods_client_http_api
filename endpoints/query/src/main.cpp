@@ -11,6 +11,7 @@
 #include <irods/irods_at_scope_exit.hpp>
 #include <irods/irods_exception.hpp>
 #include <irods/irods_query.hpp>
+#include <irods/irods_version.h>
 #include <irods/procApiRequest.h>
 #include <irods/query_builder.hpp>
 #include <irods/rodsErrorTable.h>
@@ -350,7 +351,11 @@ namespace
 				{
 					irods::experimental::query_builder qb;
 
+#if IRODS_VERSION_INTEGER < 5000090
 					qb.type(irods::experimental::query_type::specific);
+#else
+					qb.type(irods::query_type::specific);
+#endif
 					qb.bind_arguments(args);
 					//qb.row_offset(offset);
 					//qb.row_limit(count);
