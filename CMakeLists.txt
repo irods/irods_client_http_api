@@ -4,8 +4,7 @@ cmake_minimum_required(VERSION 3.18.0 FATAL_ERROR)
 # Build Configuration
 #
 
-set(IRODS_MINIMUM_VERSION "4.3.2")
-find_package(IRODS "${IRODS_MINIMUM_VERSION}" REQUIRED)
+find_package(IRODS REQUIRED)
 
 include(RequireOutOfSourceBuild)
 
