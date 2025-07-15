@@ -103,18 +103,18 @@ namespace irods::http::handler
 			token_error_log.reserve(500);
 
 			auto error_log_itter{fmt::format_to(
-				std::back_inserter(token_error_log), "{}: Token request failed! Error: [{}]", __func__, *error)};
+				std::back_inserter(token_error_log), "{}: Token request failed! Error: [{}]", __func__, error->get_ref<const std::string&>())};
 
 			// Optional OAuth 2.0 error parameters follow
 			if (const auto error_description{_response_to_check.find("error_description")};
 			    error_description != std::cend(_response_to_check))
 			{
-				error_log_itter = fmt::format_to(error_log_itter, ", Error Description [{}]", *error_description);
+				error_log_itter = fmt::format_to(error_log_itter, ", Error Description [{}]", error_description->get_ref<const std::string&>());
 			}
 
 			if (const auto error_uri{_response_to_check.find("error_uri")}; error_uri != std::cend(_response_to_check))
 			{
-				error_log_itter = fmt::format_to(error_log_itter, ", Error URI [{}]", *error_uri);
+				error_log_itter = fmt::format_to(error_log_itter, ", Error URI [{}]", error_uri->get_ref<const std::string&>());
 			}
 
 			logging::warn(fmt::runtime(token_error_log));
