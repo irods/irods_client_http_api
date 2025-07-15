@@ -32,6 +32,7 @@
 #include <boost/beast.hpp>
 
 #include <curl/curl.h>
+#include <fmt/format.h>
 #include <jwt-cpp/jwt.h>
 #include <jwt-cpp/traits/nlohmann-json/traits.h>
 #include <nlohmann/json.hpp>
@@ -39,11 +40,22 @@
 
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 // clang-format off
 namespace beast = boost::beast; // from <boost/beast.hpp>
 namespace net   = boost::asio;  // from <boost/asio.hpp>
 // clang-format on
+
+template <>
+struct fmt::formatter<CURLUcode> : fmt::formatter<std::underlying_type_t<CURLUcode>>
+{
+	constexpr auto format(const CURLUcode& e, format_context& ctx) const
+	{
+		return fmt::formatter<std::underlying_type_t<CURLUcode>>::format(
+			static_cast<std::underlying_type_t<CURLUcode>>(e), ctx);
+	}
+};
 
 namespace irods::http
 {
