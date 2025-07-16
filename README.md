@@ -76,7 +76,8 @@ API documentation can be found in [API.md](./API.md).
 
 ## Build
 
-**IMPORTANT: As documented under [Build Dependencies](#build-dependencies), the minimum version requirement for the iRODS development package is 4.3.2 or later. As a result, support for the [GenQuery2 API plugin](https://github.com/irods/irods_api_plugin_genquery2) has been removed. To use GenQuery2, the iRODS HTTP API must be connected to a server running iRODS 4.3.2 or later.**
+> [!IMPORTANT]
+> As documented under [Build Dependencies](#build-dependencies), the minimum version requirement for the iRODS development package is 4.3.2 or later. As a result, support for the [GenQuery2 API plugin](https://github.com/irods/irods_api_plugin_genquery2) has been removed. To use GenQuery2, the iRODS HTTP API must be connected to a server running iRODS 4.3.2 or later.
 
 To build this project, follow the normal CMake build steps.
 ```bash
@@ -92,7 +93,8 @@ Upon success, you should have an installable package.
 
 This project provides two types of Dockerfiles, some for building packages on various operating systems, and one for running the application.
 
-**IMPORTANT: All commands in the sections that follow assume you are located in the root of the repository.**
+> [!IMPORTANT]
+> All commands in the sections that follow assume you are located in the root of the repository.
 
 ### The Builder Image
 
@@ -178,7 +180,8 @@ You can generate a configuration file by running the following:
 irods_http_api --dump-config-template > config.json
 ```
 
-**IMPORTANT: `--dump-config-template` does not produce a fully working configuration. It must be updated before it can be used.**
+> [!IMPORTANT]
+> `--dump-config-template` does not produce a fully working configuration. It must be updated before it can be used.
 
 ### Configuration File Structure
 
@@ -186,7 +189,8 @@ The JSON structure below represents the default configuration.
 
 Notice how some of the configuration values are wrapped in angle brackets (e.g. `"<string>"`). These are placeholder values that must be updated before launch.
 
-**IMPORTANT: The comments in the JSON structure are there for explanatory purposes and must not be included in your configuration. Failing to follow this requirement will result in the server failing to start up.**
+> [!IMPORTANT]
+> The comments in the JSON structure are there for explanatory purposes and must not be included in your configuration. Failing to follow this requirement will result in the server failing to start up.
 
 ```js
 {
