@@ -1825,6 +1825,338 @@ class test_data_objects_endpoint(unittest.TestCase):
             })
             self.logger.debug(r.content)
 
+    def test_writing_to_data_object_using_header_based_form(self):
+        headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/header_based_write_op1.txt'
+
+        # Generate 512kb of random bytes.
+        # This is the data we'll upload to the HTTP API.
+        data512kb = os.urandom(512 * 1024)
+
+        # Calculate a checksum for data.
+        # The checksum will be used to confirm the data was uploaded correctly.
+        checksum = base64.b64encode(hashlib.sha256(data512kb).digest()).decode('utf-8')
+        self.logger.debug(f'checksum = [{checksum}]')
+
+        try:
+            # Create a new data object holding the binary data.
+            r = requests.post(self.url_endpoint, headers={
+                'Authorization': headers['Authorization'],
+                'Content-Type': 'application/octet-stream',
+                'irods-api-request-op': 'write',
+                'irods-api-request-lpath': data_object
+            }, data=data512kb)
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the data was written to the iRODS server safely.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'calculate_checksum',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['checksum'][5:], checksum)
+
+        finally:
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
+    def execute_write_using_header_based_form(self, **args):
+        conn = http.client.HTTPConnection(config.test_config['host'], config.test_config['port'])
+
+        headers = {
+            'Authorization': f"Bearer {args['bearer_token']}",
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'irods-api-request-op': args['fields']['op'],
+            'irods-api-request-offset': args['fields']['offset'],
+            'irods-api-request-parallel-write-handle': args['fields']['parallel-write-handle'],
+            'irods-api-request-stream-index': args['fields']['stream-index']
+        }
+        conn.request('POST', config.test_config['url_base'] + '/data-objects', bytes(args['bytes'], 'utf-8'), headers)
+
+        response = conn.getresponse()
+        result = json.loads(response.read().decode('utf-8'))
+        self.logger.debug(result)
+        conn.close()
+
+        self.assertEqual(response.status, 200)
+
+        return result
+
+    def test_parallel_writes_using_header_based_form(self):
+        headers = {'Authorization': 'Bearer ' + self.rodsuser_bearer_token}
+
+        # Indicates whether the parallel_write_shutdown operation needs to be called.
+        # This is used for clean up when errors occur.
+        invoke_parallel_write_shutdown = False
+
+        try:
+            stream_count = 3
+
+            # Tell the server we're about to do a parallel write.
+            data_object = os.path.join('/', self.zone_name, 'home', self.rodsuser_username, 'parallel_write_header_based_0.txt')
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'parallel_write_init',
+                'lpath': data_object,
+                'stream-count': stream_count
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            parallel_write_handle = result['parallel_write_handle']
+
+            # Make sure the parallel_write_shutdown operation is invoked now that we
+            # have a parallel-write handle.
+            invoke_parallel_write_shutdown = True
+
+            # Write to the data object using the parallel write handle.
+            futures = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=stream_count) as executor:
+                for e in enumerate(['A', 'B', 'C']):
+                    count = 10
+                    futures.append(executor.submit(self.execute_write_using_header_based_form, **{
+                        'bearer_token': self.rodsuser_bearer_token,
+                        'fields': {
+                            'op': 'write',
+                            'parallel-write-handle': parallel_write_handle,
+                            'offset': e[0] * count,
+                            'stream-index': e[0]
+                        },
+                        'bytes': e[1] * count
+                    }))
+
+                for f in concurrent.futures.as_completed(futures):
+                    result = f.result()
+                    self.logger.debug(result)
+                    self.assertEqual(result['irods_response']['status_code'], 0)
+
+            # End the parallel write.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'parallel_write_shutdown',
+                'parallel-write-handle': parallel_write_handle
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Read the contents of the data object and show it contains exactly what we expect.
+            r = requests.get(self.url_endpoint, headers=headers, params={
+                'op': 'read',
+                'lpath': data_object,
+                'count': 30
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.content.decode('utf-8'), 'A' * 10 + 'B' * 10 + 'C' * 10)
+
+            # Show the data was written to the iRODS server safely.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'calculate_checksum',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['checksum'], 'sha2:40ghWJg094XKraNmQ+nnzxCJp0ugME9rfaZsVd/A4Sc=')
+
+        finally:
+            # End the parallel write in case something failed.
+            # This avoids leaking of parallel-write resources in the HTTP API server.
+            if invoke_parallel_write_shutdown:
+                r = requests.post(self.url_endpoint, headers=headers, data={
+                    'op': 'parallel_write_shutdown',
+                    'parallel-write-handle': parallel_write_handle
+                })
+                self.logger.debug(r.content)
+
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
+    def test_parallel_writes_using_header_based_form_with_data_exceeding_internal_write_threshold(self):
+        # This test assumes the HTTP API is configured to use a value smaller than
+        # 96kb for "/irods_client/max_number_of_bytes_per_write_operation". This is
+        # important because values greater than or equal to 96kb will result in the
+        # background thread pool only being used one time. This test is designed to
+        # force the HTTP API to schedule multiple writes across the thread pool.
+        #
+        # NOTE: This test DOES NOT and CANNOT confirm the background thread pool is
+        # being used because it does not have visibility into the server's internal
+        # mechanisms. Our only means of verification is by careful review of the log
+        # messages. The server is expected to output messages about multiple writes
+        # to the iRODS server. The thread ID should change from one write operation to
+        # the next.
+
+        headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/parallel_writes_header_based_1.txt'
+
+        # Generate 96kb string.
+        # This is the data we'll upload to the HTTP API.
+        data96kb = ('A' * 32768) + ('B' * 32768) + ('C' * 32768)
+
+        # Indicates whether the parallel_write_shutdown operation needs to be called.
+        # This is used for clean up when errors occur.
+        invoke_parallel_write_shutdown = False
+
+        try:
+            # Tell the server we're about to do a parallel write.
+            stream_count = 3
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'parallel_write_init',
+                'lpath': data_object,
+                'stream-count': stream_count
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            parallel_write_handle = result['parallel_write_handle']
+
+            # Make sure the parallel_write_shutdown operation is invoked now that we
+            # have a parallel-write handle.
+            invoke_parallel_write_shutdown = True
+
+            # Write to the data object using the parallel write handle.
+            futures = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                chunk_size = len(data96kb) // stream_count
+                self.logger.debug(f'chunk size = [{chunk_size}]')
+                for i in range(stream_count):
+                    chunk_start = i * chunk_size
+                    futures.append(executor.submit(self.execute_write_using_header_based_form, **{
+                        'bearer_token': self.rodsuser_bearer_token,
+                        'fields': {
+                            'op': 'write',
+                            'parallel-write-handle': parallel_write_handle,
+                            'offset': chunk_start,
+                            'stream-index': i
+                        },
+                        'bytes': data96kb[chunk_start : chunk_start + chunk_size]
+                    }))
+
+                for f in concurrent.futures.as_completed(futures):
+                    result = f.result()
+                    self.logger.debug(result)
+                    self.assertEqual(result['irods_response']['status_code'], 0)
+
+            # End the parallel write.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'parallel_write_shutdown',
+                'parallel-write-handle': parallel_write_handle
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # The data object was closed successfully.
+            # Do not invoke the parallel_write_shutdown operation in the finally block.
+            invoke_parallel_write_shutdown = False
+
+            # Show the data was written to the iRODS server safely.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'calculate_checksum',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['checksum'], 'sha2:YS0DmQW7u51PaFVYl/iTsHFOctKtP1MZZ8JLnBwCLMI=')
+
+        finally:
+            # End the parallel write in case something failed.
+            # This avoids leaking of parallel-write resources in the HTTP API server.
+            if invoke_parallel_write_shutdown:
+                r = requests.post(self.url_endpoint, headers=headers, data={
+                    'op': 'parallel_write_shutdown',
+                    'parallel-write-handle': parallel_write_handle
+                })
+                self.logger.debug(r.content)
+
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
+    def test_non_parallel_writes_using_header_based_form_with_data_exceeding_internal_write_threshold(self):
+        # This test assumes the HTTP API is configured to use a value smaller than
+        # 64kb for "/irods_client/max_number_of_bytes_per_write_operation". This is
+        # important because values greater than or equal to 64kb will result in the
+        # background thread pool only being used one time. This test is designed to
+        # force the HTTP API to schedule multiple writes across the thread pool.
+        #
+        # NOTE: This test DOES NOT and CANNOT confirm the background thread pool is
+        # being used because it does not have visibility into the server's internal
+        # mechanisms. Our only means of verification is by careful review of the log
+        # messages. The server is expected to output messages about multiple writes
+        # to the iRODS server. The thread ID should change from one write operation to
+        # the next.
+
+        headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/parallel_writes_header_based_2.txt'
+
+        # Generate 64kb of random bytes.
+        # This is the data we'll upload to the HTTP API.
+        data64kb = os.urandom(64 * 1024)
+
+        # Calculate a checksum for data.
+        # The checksum will be used to confirm the data was uploaded correctly.
+        checksum = base64.b64encode(hashlib.sha256(data64kb).digest()).decode('utf-8')
+        self.logger.debug(f'checksum = [{checksum}]')
+
+        try:
+            # Create a new data object holding the binary data.
+            r = requests.post(self.url_endpoint, headers={
+                'Authorization': headers['Authorization'],
+                'irods-api-request-op': 'write',
+                'irods-api-request-lpath': data_object
+            }, data=data64kb)
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the data was written to the iRODS server safely.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'calculate_checksum',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['checksum'][5:], checksum)
+
+        finally:
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
     def test_modifying_metadata_atomically(self):
         headers = {'Authorization': 'Bearer ' + self.rodsuser_bearer_token}
 
