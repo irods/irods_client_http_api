@@ -33,14 +33,12 @@
 #include <boost/program_options.hpp>
 #include <boost/url/parse.hpp>
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-parameter"
-#include <boost/process.hpp>
-#pragma clang diagnostic pop
-
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
+
+#include <jsoncons/json.hpp>
+#include <jsoncons_ext/jsonschema/jsonschema.hpp>
 
 #include <algorithm>
 #include <chrono>
@@ -175,22 +173,22 @@ auto print_version_info() -> void
 constexpr auto default_jsonschema() -> std::string_view
 {
 	// clang-format on
-	return R"({{
+	return R"({
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "$id": "https://schemas.irods.org/irods-http-api/config.json",
     "type": "object",
-    "properties": {{
-        "http_server": {{
+    "properties": {
+        "http_server": {
             "type": "object",
-            "properties": {{
-                "host": {{
+            "properties": {
+                "host": {
                     "type": "string",
-                    "pattern": "^[0-9]{{1,3}}\\.[0-9]{{1,3}}\\.[0-9]{{1,3}}\\.[0-9]{{1,3}}$"
-                }},
-                "port": {{
+                    "pattern": "^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$"
+                },
+                "port": {
                     "type": "integer"
-                }},
-                "log_level": {{
+                },
+                "log_level": {
                     "enum": [
                         "trace",
                         "debug",
@@ -199,72 +197,72 @@ constexpr auto default_jsonschema() -> std::string_view
                         "error",
                         "critical"
                     ]
-                }},
-                "authentication": {{
+                },
+                "authentication": {
                     "type": "object",
-                    "properties": {{
-                        "eviction_check_interval_in_seconds": {{
+                    "properties": {
+                        "eviction_check_interval_in_seconds": {
                             "type": "integer",
                             "minimum": 1
-                        }},
-                        "basic": {{
+                        },
+                        "basic": {
                             "type": "object",
-                            "properties": {{
-                                "timeout_in_seconds": {{
+                            "properties": {
+                                "timeout_in_seconds": {
                                     "type": "integer",
                                     "minimum": 1
-                                }}
-                            }},
+                                }
+                            },
                             "required": [
                                 "timeout_in_seconds"
                             ]
-                        }},
-                        "openid_connect": {{
+                        },
+                        "openid_connect": {
                             "type": "object",
-                            "properties": {{
-                                "timeout_in_seconds": {{
+                            "properties": {
+                                "timeout_in_seconds": {
                                     "type": "integer",
                                     "minimum": 1
-                                }},
-                                "state_timeout_in_seconds": {{
+                                },
+                                "state_timeout_in_seconds": {
                                     "type": "integer",
                                     "minimum": 1
-                                }},
-                                "provider_url": {{
+                                },
+                                "provider_url": {
                                     "type": "string",
                                     "format": "uri"
-                                }},
-                                "client_id": {{
+                                },
+                                "client_id": {
                                     "type": "string"
-                                }},
-                                "client_secret": {{
+                                },
+                                "client_secret": {
                                     "type": "string"
-                                }},
-                                "access_token_secret": {{
+                                },
+                                "access_token_secret": {
                                     "type": "string"
-                                }},
-                                "require_aud_member_from_introspection_endpoint": {{
+                                },
+                                "require_aud_member_from_introspection_endpoint": {
                                     "type": "boolean"
-                                }},
-                                "tls_certificates_directory": {{
+                                },
+                                "tls_certificates_directory": {
                                     "type": "string"
-                                }},
-                                "user_mapping": {{
+                                },
+                                "user_mapping": {
                                     "type": "object",
-                                    "properties": {{
-                                        "plugin_path": {{
+                                    "properties": {
+                                        "plugin_path": {
                                             "type": "string"
-                                        }},
-                                        "configuration": {{
+                                        },
+                                        "configuration": {
                                             "type": "object"
-                                        }}
-                                    }},
+                                        }
+                                    },
                                     "required": [
                                         "plugin_path",
                                         "configuration"
                                     ]
-                                }}
-                            }},
+                                }
+                            },
                             "required": [
                                 "timeout_in_seconds",
                                 "state_timeout_in_seconds",
@@ -275,58 +273,58 @@ constexpr auto default_jsonschema() -> std::string_view
                                 "user_mapping",
                                 "client_secret"
                             ]
-                        }}
-                    }},
+                        }
+                    },
                     "anyOf": [
-                        {{
+                        {
                             "required": [
                                 "eviction_check_interval_in_seconds",
                                 "basic"
                             ]
-                        }},
-                        {{
+                        },
+                        {
                              "required": [
                                 "eviction_check_interval_in_seconds",
                                 "openid_connect"
                              ]
-                        }}
+                        }
                     ]
-                }},
-                "requests": {{
+                },
+                "requests": {
                     "type": "object",
-                    "properties": {{
-                        "threads": {{
+                    "properties": {
+                        "threads": {
                             "type": "integer",
                             "minimum": 1
-                        }},
-                        "max_size_of_request_body_in_bytes": {{
+                        },
+                        "max_size_of_request_body_in_bytes": {
                             "type": "integer",
                             "minimum": 0
-                        }},
-                        "timeout_in_seconds": {{
+                        },
+                        "timeout_in_seconds": {
                             "type": "integer",
                             "minimum": 1
-                        }}
-                    }},
+                        }
+                    },
                     "required": [
                         "threads",
                         "max_size_of_request_body_in_bytes",
                         "timeout_in_seconds"
                     ]
-                }},
-                "background_io": {{
+                },
+                "background_io": {
                     "type": "object",
-                    "properties": {{
-                        "threads": {{
+                    "properties": {
+                        "threads": {
                             "type": "integer",
                             "minimum": 1
-                        }}
-                    }},
+                        }
+                    },
                     "required": [
                         "threads"
                     ]
-                }}
-            }},
+                }
+            },
             "required": [
                 "host",
                 "port",
@@ -334,55 +332,55 @@ constexpr auto default_jsonschema() -> std::string_view
                 "requests",
                 "background_io"
             ]
-        }},
-        "irods_client": {{
+        },
+        "irods_client": {
             "type": "object",
-            "properties": {{
-                "host": {{
+            "properties": {
+                "host": {
                     "type": "string"
-                }},
-                "port": {{
+                },
+                "port": {
                     "type": "integer"
-                }},
-                "zone": {{
+                },
+                "zone": {
                     "type": "string"
-                }},
-                "tls": {{
+                },
+                "tls": {
                     "type": "object",
-                    "properties": {{
-                        "client_server_policy": {{
+                    "properties": {
+                        "client_server_policy": {
                             "enum": [
                                 "CS_NEG_REFUSE",
                                 "CS_NEG_DONT_CARE",
                                 "CS_NEG_REQUIRE"
                             ]
-                        }},
-                        "ca_certificate_file": {{
+                        },
+                        "ca_certificate_file": {
                             "type": "string"
-                        }},
-                        "verify_server": {{
+                        },
+                        "verify_server": {
                             "enum": [
                                 "none",
                                 "cert",
                                 "hostname"
                             ]
-                        }},
-                        "client_server_negotiation": {{
+                        },
+                        "client_server_negotiation": {
                             "type": "string"
-                        }},
-                        "encryption_algorithm": {{
+                        },
+                        "encryption_algorithm": {
                             "type": "string"
-                        }},
-                        "encryption_key_size": {{
+                        },
+                        "encryption_key_size": {
                             "type": "integer"
-                        }},
-                        "encryption_hash_rounds": {{
+                        },
+                        "encryption_hash_rounds": {
                             "type": "integer"
-                        }},
-                        "encryption_salt_size": {{
+                        },
+                        "encryption_salt_size": {
                             "type": "integer"
-                        }}
-                    }},
+                        }
+                    },
                     "required": [
                         "client_server_policy",
                         "ca_certificate_file",
@@ -393,65 +391,65 @@ constexpr auto default_jsonschema() -> std::string_view
                         "encryption_hash_rounds",
                         "encryption_salt_size"
                     ]
-                }},
-                "enable_4_2_compatibility": {{
+                },
+                "enable_4_2_compatibility": {
                     "type": "boolean"
-                }},
-                "proxy_admin_account": {{
+                },
+                "proxy_admin_account": {
                     "type": "object",
-                    "properties": {{
-                        "username": {{
+                    "properties": {
+                        "username": {
                             "type": "string"
-                        }},
-                        "password": {{
+                        },
+                        "password": {
                             "type": "string"
-                        }}
-                    }},
+                        }
+                    },
                     "required": [
                         "username",
                         "password"
                     ]
-                }},
-                "connection_pool": {{
+                },
+                "connection_pool": {
                     "type": "object",
-                    "properties": {{
-                        "size": {{
+                    "properties": {
+                        "size": {
                             "type": "integer",
                             "minimum": 1
-                        }},
-                        "refresh_timeout_in_seconds": {{
+                        },
+                        "refresh_timeout_in_seconds": {
                             "type": "integer",
                             "minimum": 1
-                        }},
-                        "max_retrievals_before_refresh": {{
+                        },
+                        "max_retrievals_before_refresh": {
                             "type": "integer",
                             "minimum": 1
-                        }},
-                        "refresh_when_resource_changes_detected": {{
+                        },
+                        "refresh_when_resource_changes_detected": {
                             "type": "boolean"
-                        }}
-                    }},
+                        }
+                    },
                     "required": [
                         "size"
                     ]
-                }},
-                "max_number_of_parallel_write_streams": {{
+                },
+                "max_number_of_parallel_write_streams": {
                     "type": "integer",
                     "minimum": 1
-                }},
-                "max_number_of_bytes_per_read_operation": {{
+                },
+                "max_number_of_bytes_per_read_operation": {
                     "type": "integer",
                     "minimum": 1
-                }},
-                "max_number_of_bytes_per_write_operation": {{
+                },
+                "max_number_of_bytes_per_write_operation": {
                     "type": "integer",
                     "minimum": 1
-                }},
-                "max_number_of_rows_per_catalog_query": {{
+                },
+                "max_number_of_rows_per_catalog_query": {
                     "type": "integer",
                     "minimum": 1
-                }}
-            }},
+                }
+            },
             "required": [
                 "host",
                 "port",
@@ -464,14 +462,13 @@ constexpr auto default_jsonschema() -> std::string_view
                 "max_number_of_bytes_per_write_operation",
                 "max_number_of_rows_per_catalog_query"
             ]
-        }}
-    }},
+        }
+    },
     "required": [
         "http_server",
         "irods_client"
     ]
-}}
-)";
+})";
 	// clang-format on
 } // default_jsonschema
 
@@ -604,49 +601,45 @@ auto is_valid_configuration(const std::string& _schema_path, const std::string& 
 	try {
 		fmt::print("Validating configuration file ...\n");
 
-		const auto validate_config = [&_config_path](const std::string_view _schema_path) -> int {
-			constexpr std::string_view python_code = "import json, jsonschema; "
-													 "config_file = open('{}'); "
-													 "config = json.load(config_file); "
-													 "config_file.close(); "
-													 "schema_file = open('{}'); "
-													 "schema = json.load(schema_file); "
-													 "schema_file.close(); "
-													 "jsonschema.validate(config, schema);";
+		namespace jsonschema = jsoncons::jsonschema;
 
-			return boost::process::system(
-				boost::process::search_path("python3"), "-c", fmt::format(python_code, _config_path, _schema_path));
-		};
+		std::ifstream in{_config_path};
+		if (!in) {
+			fmt::print(stderr, "Could not open configuration file for validation.\n");
+			return false;
+		}
+		const auto config = jsoncons::json::parse(in);
 
-		std::string schema;
-		int ec = -1;
-
+		jsoncons::json schema;
 		if (_schema_path.empty()) {
 			fmt::print("No JSON schema file provided. Using default.\n");
-
-			constexpr const char* default_schema_file_path = "/tmp/default_irods_http_api_jsonschema.json";
-
-			if (std::ofstream out{default_schema_file_path}; out) {
-				out << fmt::format(default_jsonschema());
-			}
-			else {
-				fmt::print(stderr, "Could not create local schema file for validation.\n");
-				return false;
-			}
-
-			ec = validate_config(default_schema_file_path);
+			schema = jsoncons::json::parse(default_jsonschema());
 		}
 		else {
 			fmt::print("Using user-provided schema file [{}].\n", _schema_path);
-			ec = validate_config(_schema_path);
+			std::ifstream in{_schema_path};
+			if (!in) {
+				fmt::print(stderr, "Could not open schema file for validation.\n");
+				return false;
+			}
+			schema = jsoncons::json::parse(in);
+		}
+		const auto compiled = jsonschema::make_json_schema(std::move(schema));
+
+		jsoncons::json_decoder<jsoncons::ojson> decoder;
+		compiled.validate(config, decoder);
+		const auto json_result = decoder.get_result();
+
+		if (!json_result.empty()) {
+			std::ostringstream out;
+			out << pretty_print(json_result);
+			fmt::print(stderr, "Configuration failed validation.\n");
+			fmt::print(stderr, "{}\n", out.str());
+			return false;
 		}
 
-		if (ec == 0) {
-			fmt::print("Configuration passed validation!\n");
-			return true;
-		}
-
-		fmt::print(stderr, "Configuration failed validation.\n");
+		fmt::print("Configuration passed validation!\n");
+		return true;
 	}
 	catch (const std::system_error& e) {
 		fmt::print(stderr, "Error: {}\n", e.what());
@@ -974,7 +967,7 @@ auto main(int _argc, char* _argv[]) -> int
 		}
 
 		if (vm.count("dump-default-jsonschema") > 0) {
-			fmt::print(default_jsonschema());
+			fmt::print("{}\n", default_jsonschema());
 			return 0;
 		}
 

@@ -48,6 +48,7 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
         irods-externals-cmake3.21.4-0 \
         irods-externals-fmt-libcxx8.1.1-1 \
         irods-externals-json3.10.4-0 \
+        irods-externals-jsoncons0.178.0-0 \
         irods-externals-jwt-cpp0.6.99.1-0 \
         irods-externals-nanodbc-libcxx2.13.0-2 \
         irods-externals-spdlog-libcxx1.9.2-2 \

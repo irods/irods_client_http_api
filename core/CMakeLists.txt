@@ -45,6 +45,10 @@ target_compile_definitions(
   IRODS_HTTP_API_BASE_URL="/irods-http-api/${IRODS_HTTP_API_VERSION}"
 )
 
+# TODO(irods/irods#8581): This is needed because the iRODS buildsystem is missing instructions
+# for exposing it. This is a temporary workaround until a later version of iRODS corrects the situation.
+IRODS_MACRO_CHECK_DEPENDENCY_SET_FULLPATH_ADD_TO_IRODS_DEVELOP_DEPENDENCIES_LIST(JSONCONS jsoncons0.178.0-0)
+
 target_include_directories(
   irods_http_api_core
   PRIVATE
@@ -52,6 +56,7 @@ target_include_directories(
   "${CMAKE_CURRENT_BINARY_DIR}/include"
   "${IRODS_HTTP_PROJECT_SOURCE_DIR}/endpoints/shared/include"
   "${IRODS_EXTERNALS_FULLPATH_BOOST}/include"
+  "${IRODS_EXTERNALS_FULLPATH_JSONCONS}/include"
 )
 
 target_link_libraries(
