@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 
+#include <boost/regex.hpp>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
 
@@ -13,20 +14,44 @@ namespace
 {
 	// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 	std::string claim_to_match;
+	// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+	boost::regex match_regex;
+	// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+	std::string replace_fmt;
+	// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+	bool both_regex_and_replace_exist;
 
 	auto init(const nlohmann::json& _config) -> void
 	{
 		const auto claim{_config.find("irods_user_claim")};
+		const auto match{_config.find("match_regex")};
+		const auto replace{_config.find("replace_format")};
+
 		if (claim == std::end(_config)) {
 			throw std::logic_error{"Unable to find [irods_user_claim] in provided config."};
 		}
 
 		claim_to_match = claim->get<std::string>();
+
+		both_regex_and_replace_exist = (match != std::end(_config)) && (replace != std::end(_config));
+
+		if (!both_regex_and_replace_exist && (match != std::end(_config) || replace != std::end(_config))) {
+			throw std::logic_error{"Both [match_regex] and [replace_format] need to exist or be removed from the "
+			                       "configuration for the plugin to run."};
+		}
+		if (both_regex_and_replace_exist) {
+			match_regex = match->get<std::string>();
+			replace_fmt = replace->get<std::string>();
+		}
 	} // init
 
 	auto match(const nlohmann::json& _params) -> std::optional<std::string>
 	{
 		if (auto claim{_params.find(claim_to_match)}; claim != std::end(_params)) {
+			if (both_regex_and_replace_exist) {
+				return boost::regex_replace(claim->get<std::string>(), match_regex, replace_fmt);
+			}
+
 			return claim->get<std::string>();
 		}
 

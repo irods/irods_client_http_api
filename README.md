@@ -527,17 +527,29 @@ On most Linux-based systems, the HTTP API user mapping plugins will be installed
 This plugin looks for a claim that provides a direct mapping of an authenticated OpenID user to an iRODS user.
 This requires that you have the ability to add a claim within the OpenID Provider.
 
+Additionally, the plugin allows you to modify the claim found by matching the claim using a regular expression (regex) and replacing the claim with your
+desired substitution. The Perl Syntax is used for the regular expression and the formatting string. See the documentation at Boost
+for the Perl Syntax used: https://www.boost.org/doc/libs/1_81_0/libs/regex/doc/html/boost_regex/syntax/perl_syntax.html
+
+Both `match_regex` and `replace_format` are required to be in the configuration to use the claim substitution feature.
+If you wish to disable the feature, both `match_regex` and `replace_format` must be absent from the configuration for the feature to be disabled.
+If only one of the options are present, the plugin will cause the server to fail to start.
+
 ##### Configuration
 
 The configuration for this plugin is as follows:
 
 ```json
 "configuration": {
-    "irods_user_claim": "claim_to_map_user"
+    "irods_user_claim": "claim_to_map_user",
+    "match_regex": "(\\w+).*",
+    "replace_format": "\\U${1}\\E"
 }
 ```
 
-In this particular example, `claim_to_map_user` is the claim that maps the OpenID user to an iRODS user.
+In this particular example, `claim_to_map_user` is the claim that maps the OpenID user to an iRODS user. This then would get matched by the regular expression in
+`match_regex`, and then formatted by `replace_format`. For example, if the claim `abc123@test` were to be received using the previous configuration, the HTTP API
+would attempt to use `ABC123` as the iRODS username.
 
 ### Plugin Development
 
