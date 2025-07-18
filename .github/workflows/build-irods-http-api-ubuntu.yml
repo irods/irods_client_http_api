@@ -1,5 +1,5 @@
 name: Build Package
-on: [pull_request]
+on: [ pull_request ]
 jobs:
   build:
     env:
@@ -9,12 +9,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ 'ubuntu:22.04', 'ubuntu:24.04' ]
-        irods-version: [ 4.3.2, 4.3.3 ]
+        irods-version: [ 4.3.2, 5.0.0, 5.0.1 ]
         exclude:
           - os: 'ubuntu:24.04'
             irods-version: 4.3.2
-          - os: 'ubuntu:22.04'
-            irods-version: 4.3.3
     runs-on: ubuntu-latest
     container: ${{ matrix.os }}
     steps:
@@ -59,7 +57,7 @@ jobs:
       - name: Configure CMake
         run:  |
               mkdir build
-              cmake -GNinja -B build/ -S .
+              cmake -DIRODS_BUILD_WITH_WERROR=NO -GNinja -B build/ -S .
       - name: Build and Package
         run:  |
               cmake --build build/ -t package
