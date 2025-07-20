@@ -4,7 +4,7 @@ jobs:
   build:
     env:
       DEBIAN_FRONTEND: noninteractive
-    name: ${{ matrix.os }}
+    name: "${{ matrix.os }} - ${{ matrix.irods-version }}"
     strategy:
       fail-fast: false
       matrix:

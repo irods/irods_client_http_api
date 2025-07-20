@@ -2,7 +2,7 @@ name: Build Package
 on: [ pull_request ]
 jobs:
   build:
-    name: ${{ matrix.os }}
+    name: "${{ matrix.os }} - ${{ matrix.irods-version }}"
     strategy:
       fail-fast: false
       matrix:
