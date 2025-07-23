@@ -2328,65 +2328,65 @@ class test_data_objects_endpoint(unittest.TestCase):
 
     def test_modifying_replica_properties(self):
         headers = {'Authorization': 'Bearer ' + self.rodsadmin_bearer_token}
-
-        # Create a data object.
         data_object = os.path.join('/', self.zone_name, 'home', self.rodsadmin_username, 'modrepl.txt')
-        r = requests.post(self.url_endpoint, headers=headers, data={
-            'op': 'touch',
-            'lpath': data_object
-        })
-        self.logger.debug(r.content)
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()['irods_response']['status_code'], 0)
 
-        # Show the replica is currently marked as good and has a size of 0.
-        r = requests.get(f'{self.url_base}/query', headers=headers, params={
-            'op': 'execute_genquery',
-            'query': f"select DATA_REPL_STATUS, DATA_SIZE where COLL_NAME = '{os.path.dirname(data_object)}' and DATA_NAME = '{os.path.basename(data_object)}'"
-        })
-        self.logger.debug(r.content)
-        self.assertEqual(r.status_code, 200)
+        try:
+            # Create a data object.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'touch',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
 
-        result = r.json()
-        self.assertEqual(result['irods_response']['status_code'], 0)
-        self.assertEqual(result['rows'][0][0], '1')
-        self.assertEqual(result['rows'][0][1], '0')
+            # Show the replica is currently marked as good and has a size of 0.
+            r = requests.get(f'{self.url_base}/query', headers=headers, params={
+                'op': 'execute_genquery',
+                'query': f"select DATA_REPL_STATUS, DATA_SIZE where COLL_NAME = '{os.path.dirname(data_object)}' and DATA_NAME = '{os.path.basename(data_object)}'"
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
 
-        # Change the replica's status and data size using the modify_replica operation.
-        r = requests.post(self.url_endpoint, headers=headers, data={
-            'op': 'modify_replica',
-            'lpath': data_object,
-            'replica-number': 0,
-            'new-data-replica-status': 0,
-            'new-data-size': 15
-        })
-        self.logger.debug(r.content)
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()['irods_response']['status_code'], 0)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['rows'][0][0], '1')
+            self.assertEqual(result['rows'][0][1], '0')
 
-        # Show the replica's status and size has changed in the catalog.
-        r = requests.get(f'{self.url_base}/query', headers=headers, params={
-            'op': 'execute_genquery',
-            'query': f"select DATA_REPL_STATUS, DATA_SIZE where COLL_NAME = '{os.path.dirname(data_object)}' and DATA_NAME = '{os.path.basename(data_object)}'"
-        })
-        self.logger.debug(r.content)
-        self.assertEqual(r.status_code, 200)
+            # Change the replica's status and data size using the modify_replica operation.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'modify_replica',
+                'lpath': data_object,
+                'replica-number': 0,
+                'new-data-replica-status': 0,
+                'new-data-size': 15
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
 
-        result = r.json()
-        self.assertEqual(result['irods_response']['status_code'], 0)
-        self.assertEqual(result['rows'][0][0], '0')
-        self.assertEqual(result['rows'][0][1], '15')
+            # Show the replica's status and size has changed in the catalog.
+            r = requests.get(f'{self.url_base}/query', headers=headers, params={
+                'op': 'execute_genquery',
+                'query': f"select DATA_REPL_STATUS, DATA_SIZE where COLL_NAME = '{os.path.dirname(data_object)}' and DATA_NAME = '{os.path.basename(data_object)}'"
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
 
-        # Remove the data object.
-        r = requests.post(self.url_endpoint, headers=headers, data={
-            'op': 'remove',
-            'lpath': data_object,
-            'catalog-only': 0,
-            'no-trash': 1
-        })
-        self.logger.debug(r.content)
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()['irods_response']['status_code'], 0)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['rows'][0][0], '0')
+            self.assertEqual(result['rows'][0][1], '15')
+
+        finally:
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
 
     def test_remove_operation_returns_an_error_when_catalog_only_is_1_and_no_trash_is_1(self):
         r = requests.post(self.url_endpoint, headers={'Authorization': 'Bearer ' + self.rodsadmin_bearer_token}, data={
