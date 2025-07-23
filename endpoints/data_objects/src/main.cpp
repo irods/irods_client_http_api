@@ -1,12 +1,14 @@
 #include "irods/private/http_api/handlers.hpp"
 
 #include "irods/private/http_api/common.hpp"
+#include "irods/private/http_api/compatibility.hpp"
 #include "irods/private/http_api/globals.hpp"
 #include "irods/private/http_api/log.hpp"
 #include "irods/private/http_api/session.hpp"
 #include "irods/private/http_api/shared_api_operations.hpp"
 #include "irods/private/http_api/version.hpp"
 
+#include <irods/apiNumber.h>
 #include <irods/client_connection.hpp>
 #include <irods/connection_pool.hpp>
 #include <irods/dataObjChksum.h>
@@ -21,12 +23,15 @@
 #include <irods/irods_version.h>
 #include <irods/key_value_proxy.hpp>
 #include <irods/modDataObjMeta.h>
+#include <irods/packStruct.h>
 #include <irods/phyPathReg.h>
 #include <irods/rcMisc.h>
 #include <irods/rodsErrorTable.h>
 #include <irods/rodsKeyWdDef.h>
+#include <irods/rodsPackInstruct.h>
 #include <irods/ticketAdmin.h>
 #include <irods/touch.h>
+#include <irods/version.hpp>
 
 #ifdef IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
 #  include <irods/authenticate.h>
@@ -2459,32 +2464,6 @@ namespace
 			res.keep_alive(_req.keep_alive());
 
 			try {
-				DataObjInfo info{};
-				irods::at_scope_exit free_memory{[&info] { clearKeyVal(&info.condInput); }};
-
-				if (const auto iter = _args.find("lpath"); iter != std::end(_args)) {
-					irods::strncpy_null_terminated(info.objPath, iter->second.c_str());
-				}
-				else {
-					logging::error(*_sess_ptr, "{}: Missing [lpath] parameter.", fn);
-					return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
-				}
-
-				if (auto iter = _args.find("resource-hierarchy"); iter != std::end(_args)) {
-					irods::strncpy_null_terminated(info.rescHier, iter->second.c_str());
-				}
-				else if (iter = _args.find("replica-number"); iter != std::end(_args)) {
-					info.replNum = std::stoi(iter->second);
-				}
-				else {
-					logging::error(*_sess_ptr, "{}: Missing [resource-hierarchy] or [replica-number] parameter.", fn);
-					return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
-				}
-
-				KeyValPair reg_params{};
-				irods::experimental::key_value_proxy kvp{reg_params};
-				irods::at_scope_exit clear_kvp{[&kvp] { kvp.clear(); }};
-
 				// clang-format off
 				static constexpr auto properties = std::to_array<std::pair<const char*, const char*>>({
 					{"new-data-checksum", CHKSUM_KW},
@@ -2506,31 +2485,339 @@ namespace
 				});
 				// clang-format on
 
-				for (auto&& [external_pname, internal_pname] : properties) {
-					if (const auto iter = _args.find(external_pname); iter != std::end(_args)) {
-						kvp[internal_pname] = iter->second;
+#ifdef IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+				constexpr auto built_against_irods5_or_later = true;
+#else
+				constexpr auto built_against_irods5_or_later = false;
+#endif // IRODS_DEV_PACKAGE_IS_AT_LEAST_IRODS_5
+
+				const auto connected_to_irods5_or_later = [&client_info] {
+					auto conn = irods::get_connection(client_info.username);
+					const auto version = irods::to_version(static_cast<RcComm*>(conn)->svrVersion->relVersion);
+					return version && *version >= irods::version{4, 90, 0};
+				}();
+
+				if ((built_against_irods5_or_later && connected_to_irods5_or_later) ||
+				    (!built_against_irods5_or_later && !connected_to_irods5_or_later))
+				{
+					DataObjInfo info{};
+					const irods::at_scope_exit free_memory{[&info] { clearKeyVal(&info.condInput); }};
+
+					if (const auto iter = _args.find("lpath"); iter != std::end(_args)) {
+						irods::strncpy_null_terminated(info.objPath, iter->second.c_str());
 					}
+					else {
+						logging::error(*_sess_ptr, "{}: Missing [lpath] parameter.", fn);
+						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					}
+
+					if (auto iter = _args.find("resource-hierarchy"); iter != std::end(_args)) {
+						irods::strncpy_null_terminated(info.rescHier, iter->second.c_str());
+					}
+					else if (iter = _args.find("replica-number"); iter != std::end(_args)) {
+						info.replNum = std::stoi(iter->second);
+					}
+					else {
+						logging::error(
+							*_sess_ptr, "{}: Missing [resource-hierarchy] or [replica-number] parameter.", fn);
+						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					}
+
+					KeyValPair reg_params{};
+					irods::experimental::key_value_proxy kvp{reg_params};
+					const irods::at_scope_exit clear_kvp{[&kvp] { kvp.clear(); }};
+
+					for (auto&& [external_pname, internal_pname] : properties) {
+						if (const auto iter = _args.find(external_pname); iter != std::end(_args)) {
+							kvp[internal_pname] = iter->second;
+						}
+					}
+
+					if (kvp.empty()) {
+						logging::error(*_sess_ptr, "{}: No properties provided.", fn);
+						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					}
+
+					// Setting this flag helps to enforce only rodsadmins are allowed to invoke
+					// this endpoint operation.
+					kvp[ADMIN_KW] = "";
+
+					ModDataObjMetaInp input{};
+					input.dataObjInfo = &info;
+					input.regParam = &reg_params;
+
+					auto conn = irods::get_connection(client_info.username);
+					const auto ec = rcModDataObjMeta(static_cast<RcComm*>(conn), &input);
+
+					res.body() = json{{"irods_response", {{"status_code", ec}}}}.dump();
 				}
+				// TODO(#434): Remove this else-block once iRODS 4.3 is EOL.
+				else if (!built_against_irods5_or_later && connected_to_irods5_or_later) {
+					//
+					// The following code exists to maintain compatibility between different runtimes.
+					// It resolves problems stemming from a change in the packing instructions for rcModDataObjMeta.
+					//
 
-				if (kvp.empty()) {
-					logging::error(*_sess_ptr, "{}: No properties provided.", fn);
-					return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					// This data structure mirrors the iRODS 5.0.1 layout.
+					struct Compatibility_DataObjInfo
+					{
+						// NOLINTBEGIN(*-avoid-c-arrays)
+						char objPath[MAX_NAME_LEN];
+						char rescName[NAME_LEN];
+						char rescHier[MAX_NAME_LEN];
+						char dataType[NAME_LEN];
+						rodsLong_t dataSize;
+						char chksum[NAME_LEN];
+						char version[NAME_LEN];
+						char filePath[MAX_NAME_LEN];
+						char dataOwnerName[NAME_LEN];
+						char dataOwnerZone[NAME_LEN];
+						int replNum;
+						int replStatus;
+						char statusString[NAME_LEN];
+						rodsLong_t dataId;
+						rodsLong_t collId;
+						int dataMapId;
+						int flags;
+						char dataComments[LONG_NAME_LEN];
+						char dataMode[SHORT_STR_LEN];
+						char dataExpiry[TIME_LEN];
+						char dataCreate[TIME_LEN];
+						char dataModify[TIME_LEN];
+						char dataAccess[NAME_LEN];
+						int dataAccessInx;
+						int writeFlag;
+						char destRescName[NAME_LEN];
+						char backupRescName[NAME_LEN];
+						char subPath[MAX_NAME_LEN];
+						specColl_t* specColl;
+						int regUid;
+						int otherFlags;
+						keyValPair_t condInput;
+						char in_pdmo[MAX_NAME_LEN];
+						Compatibility_DataObjInfo* next;
+						rodsLong_t rescId;
+						char dataAccessTime[TIME_LEN];
+						// NOLINTEND(*-avoid-c-arrays)
+					} info{};
+
+					const irods::at_scope_exit free_memory{[&info] { clearKeyVal(&info.condInput); }};
+
+					if (const auto iter = _args.find("lpath"); iter != std::end(_args)) {
+						irods::strncpy_null_terminated(info.objPath, iter->second.c_str());
+					}
+					else {
+						logging::error(*_sess_ptr, "{}: Missing [lpath] parameter.", fn);
+						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					}
+
+					if (auto iter = _args.find("resource-hierarchy"); iter != std::end(_args)) {
+						irods::strncpy_null_terminated(info.rescHier, iter->second.c_str());
+					}
+					else if (iter = _args.find("replica-number"); iter != std::end(_args)) {
+						info.replNum = std::stoi(iter->second);
+					}
+					else {
+						logging::error(
+							*_sess_ptr, "{}: Missing [resource-hierarchy] or [replica-number] parameter.", fn);
+						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					}
+
+					KeyValPair reg_params{};
+					irods::experimental::key_value_proxy kvp{reg_params};
+					const irods::at_scope_exit clear_kvp{[&kvp] { kvp.clear(); }};
+
+					for (auto&& [external_pname, internal_pname] : properties) {
+						if (const auto iter = _args.find(external_pname); iter != std::end(_args)) {
+							kvp[internal_pname] = iter->second;
+						}
+					}
+
+					if (kvp.empty()) {
+						logging::error(*_sess_ptr, "{}: No properties provided.", fn);
+						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					}
+
+					// Setting this flag helps to enforce only rodsadmins are allowed to invoke
+					// this endpoint operation.
+					kvp[ADMIN_KW] = "";
+
+					struct Compatibility_ModDataObjMetaInp
+					{
+						Compatibility_DataObjInfo* dataObjInfo;
+						KeyValPair* regParam;
+					} input{};
+
+					input.dataObjInfo = &info;
+					input.regParam = &reg_params;
+
+					const auto pi_table = std::to_array<PackingInstruction>({
+						{"KeyValPair_PI", KeyValPair_PI, nullptr},
+						{"DataObjInfo_PI",
+					     "str objPath[MAX_NAME_LEN]; str rescName[NAME_LEN]; str rescHier[MAX_NAME_LEN]; str "
+					     "dataType[NAME_LEN]; double dataSize; str chksum[NAME_LEN]; str version[NAME_LEN]; str "
+					     "filePath[MAX_NAME_LEN]; str dataOwnerName[NAME_LEN]; str dataOwnerZone[NAME_LEN]; int "
+					     "replNum; int replStatus; str statusString[NAME_LEN]; double dataId; double collId; int "
+					     "dataMapId; int flags; str dataComments[LONG_NAME_LEN]; str dataMode[SHORT_STR_LEN]; str "
+					     "dataExpiry[TIME_LEN]; str dataCreate[TIME_LEN]; str dataModify[TIME_LEN]; str "
+					     "dataAccess[NAME_LEN]; int dataAccessInx; int writeFlag; str destRescName[NAME_LEN]; str "
+					     "backupRescName[NAME_LEN]; str subPath[MAX_NAME_LEN]; int *specColl; int regUid; int "
+					     "otherFlags; struct KeyValPair_PI; str in_pdmo[MAX_NAME_LEN]; int *next; double rescId; str "
+					     "dataAccessTime[TIME_LEN];",
+					     nullptr},
+						{PACK_TABLE_END_PI, nullptr, nullptr},
+					});
+
+					auto conn = irods::get_connection(client_info.username);
+
+					const auto ec = irods::http::compatibility::procApiRequest(
+						static_cast<RcComm*>(conn),
+						MOD_DATA_OBJ_META_AN,
+						"ModDataObjMeta_PI",
+						pi_table.data(),
+						&input,
+						nullptr,
+						static_cast<void**>(nullptr),
+						nullptr);
+
+					res.body() = json{{"irods_response", {{"status_code", ec}}}}.dump();
 				}
+				// TODO(#434): Remove this else-block once iRODS 4.3 is EOL.
+				else if (built_against_irods5_or_later && !connected_to_irods5_or_later) {
+					//
+					// The following code exists to maintain compatibility between different runtimes.
+					// It resolves problems stemming from a change in the packing instructions for rcModDataObjMeta.
+					//
 
-				// Setting this flag helps to enforce only rodsadmins are allowed to invoke
-				// this endpoint operation.
-				kvp[ADMIN_KW] = "";
+					// This data structure mirrors the iRODS 4.3.4 layout.
+					struct Compatibility_DataObjInfo
+					{
+						// NOLINTBEGIN(*-avoid-c-arrays)
+						char objPath[MAX_NAME_LEN];
+						char rescName[NAME_LEN];
+						char rescHier[MAX_NAME_LEN];
+						char dataType[NAME_LEN];
+						rodsLong_t dataSize;
+						char chksum[NAME_LEN];
+						char version[NAME_LEN];
+						char filePath[MAX_NAME_LEN];
+						char dataOwnerName[NAME_LEN];
+						char dataOwnerZone[NAME_LEN];
+						int replNum;
+						int replStatus;
+						char statusString[NAME_LEN];
+						rodsLong_t dataId;
+						rodsLong_t collId;
+						int dataMapId;
+						int flags;
+						char dataComments[LONG_NAME_LEN];
+						char dataMode[SHORT_STR_LEN];
+						char dataExpiry[TIME_LEN];
+						char dataCreate[TIME_LEN];
+						char dataModify[TIME_LEN];
+						char dataAccess[NAME_LEN];
+						int dataAccessInx;
+						int writeFlag;
+						char destRescName[NAME_LEN];
+						char backupRescName[NAME_LEN];
+						char subPath[MAX_NAME_LEN];
+						specColl_t* specColl;
+						int regUid;
+						int otherFlags;
+						keyValPair_t condInput;
+						char in_pdmo[MAX_NAME_LEN];
+						Compatibility_DataObjInfo* next;
+						rodsLong_t rescId;
+						// NOLINTEND(*-avoid-c-arrays)
+					} info{};
 
-				ModDataObjMetaInp input{};
-				input.dataObjInfo = &info;
-				input.regParam = &reg_params;
+					const irods::at_scope_exit free_memory{[&info] { clearKeyVal(&info.condInput); }};
 
-				auto conn = irods::get_connection(client_info.username);
-				const auto ec = rcModDataObjMeta(static_cast<RcComm*>(conn), &input);
+					if (const auto iter = _args.find("lpath"); iter != std::end(_args)) {
+						irods::strncpy_null_terminated(info.objPath, iter->second.c_str());
+					}
+					else {
+						logging::error(*_sess_ptr, "{}: Missing [lpath] parameter.", fn);
+						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					}
 
-				json response{{"irods_response", {{"status_code", ec}}}};
+					if (auto iter = _args.find("resource-hierarchy"); iter != std::end(_args)) {
+						irods::strncpy_null_terminated(info.rescHier, iter->second.c_str());
+					}
+					else if (iter = _args.find("replica-number"); iter != std::end(_args)) {
+						info.replNum = std::stoi(iter->second);
+					}
+					else {
+						logging::error(
+							*_sess_ptr, "{}: Missing [resource-hierarchy] or [replica-number] parameter.", fn);
+						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					}
 
-				res.body() = response.dump();
+					KeyValPair reg_params{};
+					irods::experimental::key_value_proxy kvp{reg_params};
+					const irods::at_scope_exit clear_kvp{[&kvp] { kvp.clear(); }};
+
+					constexpr std::string_view prop = "new-data-access-time";
+
+					for (auto&& [external_pname, internal_pname] : properties) {
+						if (const auto iter = _args.find(external_pname); iter != std::end(_args)) {
+							if (prop == external_pname) {
+								logging::error(*_sess_ptr, "{}: iRODS server does not support access time.", fn);
+								return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+							}
+
+							kvp[internal_pname] = iter->second;
+						}
+					}
+
+					if (kvp.empty()) {
+						logging::error(*_sess_ptr, "{}: No properties provided.", fn);
+						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					}
+
+					// Setting this flag helps to enforce only rodsadmins are allowed to invoke
+					// this endpoint operation.
+					kvp[ADMIN_KW] = "";
+
+					struct Compatibility_ModDataObjMetaInp
+					{
+						Compatibility_DataObjInfo* dataObjInfo;
+						KeyValPair* regParam;
+					} input{};
+
+					input.dataObjInfo = &info;
+					input.regParam = &reg_params;
+
+					const auto pi_table = std::to_array<PackingInstruction>({
+						{"KeyValPair_PI", KeyValPair_PI, nullptr},
+						{"DataObjInfo_PI",
+					     "str objPath[MAX_NAME_LEN]; str rescName[NAME_LEN]; str rescHier[MAX_NAME_LEN]; str "
+					     "dataType[NAME_LEN]; double dataSize; str chksum[NAME_LEN]; str version[NAME_LEN]; str "
+					     "filePath[MAX_NAME_LEN]; str dataOwnerName[NAME_LEN]; str dataOwnerZone[NAME_LEN]; int "
+					     "replNum; int replStatus; str statusString[NAME_LEN]; double dataId; double collId; int "
+					     "dataMapId; int flags; str dataComments[LONG_NAME_LEN]; str dataMode[SHORT_STR_LEN]; str "
+					     "dataExpiry[TIME_LEN]; str dataCreate[TIME_LEN]; str dataModify[TIME_LEN]; str "
+					     "dataAccess[NAME_LEN]; int dataAccessInx; int writeFlag; str destRescName[NAME_LEN]; str "
+					     "backupRescName[NAME_LEN]; str subPath[MAX_NAME_LEN]; int *specColl; int regUid; int "
+					     "otherFlags; struct KeyValPair_PI; str in_pdmo[MAX_NAME_LEN]; int *next; double rescId;",
+					     nullptr},
+						{PACK_TABLE_END_PI, nullptr, nullptr},
+					});
+
+					auto conn = irods::get_connection(client_info.username);
+
+					const auto ec = irods::http::compatibility::procApiRequest(
+						static_cast<RcComm*>(conn),
+						MOD_DATA_OBJ_META_AN,
+						"ModDataObjMeta_PI",
+						pi_table.data(),
+						&input,
+						nullptr,
+						static_cast<void**>(nullptr),
+						nullptr);
+
+					res.body() = json{{"irods_response", {{"status_code", ec}}}}.dump();
+				}
 			}
 			catch (const irods::exception& e) {
 				logging::error(*_sess_ptr, "{}: {}", fn, e.client_display_what());

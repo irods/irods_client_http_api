@@ -1029,6 +1029,7 @@ auto main(int _argc, char* _argv[]) -> int
 		else {
 			logging::info("No OIDC configuration detected, running without OIDC features.");
 		}
+
 		// TODO For LONG running tasks, see the following:
 		//
 		//   - https://stackoverflow.com/questions/17648725/long-running-blocking-operations-in-boost-asio-handlers
