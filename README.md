@@ -105,6 +105,14 @@ The builder image is responsible for building the iRODS HTTP API package. Before
 docker build -t irods-http-api-builder -f irods_builder.ub22.Dockerfile .
 ```
 
+The builder image defaults to installing the development packages of the minimum supported iRODS version, 4.3.2. To install a later version of the development packages, set the `irods_version` parameter. The following is an example which demonstrates building the builder with development packages for iRODS 5.0.1.
+```bash
+docker build -t irods-http-api-builder -f irods_builder.ub22.Dockerfile --build-arg 'irods_version=5.0.1-0~jammy' .
+```
+
+> [!Note]
+> Using updated iRODS packages can sometimes resolve compatibility issues. This is particularly true when the client is built against a version of iRODS which is older than the iRODS server which it is connecting to.
+
 With the builder image in hand, all that's left is to build the iRODS HTTP API project. The builder image is designed to compile code sitting on your machine. This is important because it gives you the ability to build any fork or branch of the project. **Keep in mind the [GenQuery2 API plugin](https://github.com/irods/irods_api_plugin_genquery2) is no longer supported.**
 
 Building the package requires mounting the project into the container at the appropriate location. The command you run should look similar to the one below. **Don't forget to create the directory which will hold your packages!**

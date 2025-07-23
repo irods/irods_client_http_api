@@ -38,6 +38,7 @@ RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     dnf config-manager -y --set-enabled powertools && \
     rm -rf /tmp/*
 
+# The version of the iRODS packages to build against.
 ARG irods_version=4.3.2-0.el8
 RUN --mount=type=cache,target=/var/cache/dnf,sharing=locked \
     --mount=type=cache,target=/var/cache/yum,sharing=locked \
