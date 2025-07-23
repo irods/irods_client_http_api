@@ -4152,9 +4152,9 @@ class test_zones_endpoint(unittest.TestCase):
         self.assertEqual(result['irods_response']['status_code'], 0)
 
         zone_report = result['zone_report']
-        self.assertIn('schema_version', zone_report)
         self.assertIn('zones', zone_report)
         self.assertGreaterEqual(len(zone_report['zones']), 1)
+        self.assertIn('servers', zone_report['zones'][0])
 
     def test_adding_removing_and_modifying_zones(self):
         headers = {'Authorization': 'Bearer ' + self.rodsadmin_bearer_token}
