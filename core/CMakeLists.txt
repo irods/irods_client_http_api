@@ -11,6 +11,7 @@ add_library(
   irods_http_api_core
   OBJECT
   "${CMAKE_CURRENT_SOURCE_DIR}/src/common.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/compatibility.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/globals.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/multipart_form_data.cpp"
