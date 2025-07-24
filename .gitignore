@@ -31,8 +31,5 @@
 *.out
 *.app
 
-# Hidden files
-.*
-
 # Derived files
 compile_commands.json
