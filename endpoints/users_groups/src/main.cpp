@@ -1,6 +1,7 @@
 #include "irods/private/http_api/handlers.hpp"
 
 #include "irods/private/http_api/common.hpp"
+#include "irods/private/http_api/compatibility.hpp"
 #include "irods/private/http_api/globals.hpp"
 #include "irods/private/http_api/log.hpp"
 #include "irods/private/http_api/session.hpp"
@@ -8,8 +9,10 @@
 #include "irods/private/http_api/version.hpp"
 
 #include <irods/irods_exception.hpp>
+#include <irods/irods_query.hpp>
 #include <irods/rodsErrorTable.h>
 #include <irods/user_administration.hpp>
+#include <irods/version.hpp>
 
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
@@ -522,15 +525,15 @@ namespace
 					}
 
 					auto conn = irods::get_connection(client_info.username);
-					adm::client::add_group(conn, adm::group{name_iter->second});
 
-					// clang-format off
-					res.body() = json{
-						{"irods_response", {
-							{"status_code", 0}
-						}}
-					}.dump();
-					// clang-format on
+					const auto version = irods::to_version(static_cast<RcComm*>(conn)->svrVersion->relVersion);
+					const auto irods_server_supports_group_keyword = version && (*version > irods::version{4, 3, 3});
+
+					// TODO(#434): Use adm::client::add_user() when 4.3 is EOL or the HTTP API is iRODS 4.3.4+ only.
+					irods::http::compatibility::add_group(
+						irods_server_supports_group_keyword, conn, adm::group{name_iter->second});
+
+					res.body() = json{{"irods_response", {{"status_code", 0}}}}.dump();
 				}
 				catch (const irods::exception& e) {
 					logging::error(*_sess_ptr, "{}: {}", fn, e.client_display_what());

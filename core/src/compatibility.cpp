@@ -2,17 +2,23 @@
 
 #include "irods/private/http_api/log.hpp"
 
+#include <irods/generalAdmin.h>
 #include <irods/irods_client_api_table.hpp>
+#include <irods/irods_exception.hpp>
 #include <irods/irods_network_factory.hpp>
+#include <irods/irods_query.hpp>
 #include <irods/irods_threads.hpp>
 #include <irods/rcGlobalExtern.h>
 #include <irods/rcMisc.h>
 #include <irods/rodsErrorTable.h>
 #include <irods/sockComm.h>
 #include <irods/sockCommNetworkInterface.hpp>
+#include <irods/userAdmin.h>
+#include <irods/user_administration.hpp>
 
 namespace
 {
+	namespace adm = irods::experimental::administration;
 	namespace logging = irods::http::log;
 
 	auto send_api_request(
@@ -157,4 +163,61 @@ namespace irods::http::compatibility
 
 		return readAndProcApiReply(_comm, apiInx, _outStruct, _outBsBBuf);
 	} // procApiRequest
+
+	auto add_group(bool _irods_server_supports_group_keyword, RcComm& _comm, const adm::group& _group) -> void
+	{
+		// get_local_zone()'s implementation is private to the user_administration library.
+		// We copy its client-side implementation here to get around that.
+		const auto zone = [&_comm] {
+			for (auto&& row : irods::query{&_comm, "select ZONE_NAME where ZONE_TYPE = 'local'"}) {
+				return row[0];
+			}
+
+			// NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+			THROW(CAT_NO_ROWS_FOUND, "Cannot get local zone name.");
+		}();
+
+		const adm::user current_user{_comm.clientUser.userName, _comm.clientUser.rodsZone};
+		const auto user_type = adm::client::type(_comm, current_user);
+
+		if (user_type == irods::experimental::administration::user_type::groupadmin) {
+			// NOLINTBEGIN(*-avoid-c-arrays)
+			char arg0[] = "mkgroup";
+			char arg2[] = "rodsgroup";
+			// NOLINTEND(*-avoid-c-arrays)
+
+			userAdminInp_t input{};
+			input.arg0 = arg0;
+			// NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast))
+			input.arg1 = const_cast<char*>(_group.name.data());
+			input.arg2 = arg2;
+			// NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast))
+			input.arg3 = const_cast<char*>(zone.data());
+
+			if (const auto ec = rxUserAdmin(&_comm, &input); ec != 0) {
+				// NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+				THROW(ec, fmt::format("Failed to add group [{}].", _group.name));
+			}
+
+			return;
+		}
+
+		GeneralAdminInput input{};
+		input.arg0 = "add";
+		input.arg2 = _group.name.data();
+		input.arg4 = zone.data();
+
+		if (_irods_server_supports_group_keyword) {
+			input.arg1 = "group";
+		}
+		else {
+			input.arg1 = "user";
+			input.arg3 = "rodsgroup";
+		}
+
+		if (const auto ec = rxGeneralAdmin(&_comm, &input); ec != 0) {
+			// NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+			THROW(ec, fmt::format("Failed to add group [{}].", _group.name));
+		}
+	} // add_group
 } // namespace irods::http::compatibility
