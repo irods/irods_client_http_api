@@ -46,10 +46,6 @@ target_compile_definitions(
   IRODS_HTTP_API_BASE_URL="/irods-http-api/${IRODS_HTTP_API_VERSION}"
 )
 
-# TODO(irods/irods#8581): This is needed because the iRODS buildsystem is missing instructions
-# for exposing it. This is a temporary workaround until a later version of iRODS corrects the situation.
-IRODS_MACRO_CHECK_DEPENDENCY_SET_FULLPATH_ADD_TO_IRODS_DEVELOP_DEPENDENCIES_LIST(JSONCONS jsoncons0.178.0-0)
-
 target_include_directories(
   irods_http_api_core
   PRIVATE
