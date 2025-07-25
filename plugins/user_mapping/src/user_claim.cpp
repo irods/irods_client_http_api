@@ -4,8 +4,9 @@
 #include <cstring>
 #include <exception>
 #include <optional>
-#include <regex>
 #include <string>
+
+#include <boost/regex.hpp>
 
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -15,24 +16,24 @@ namespace
 	// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 	std::string claim_to_match;
 	// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-	std::regex match_regex;
+	boost::basic_regex<char> match_regex;
 	// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 	std::string replace_fmt;
   
 	auto init(const nlohmann::json& _config) -> void
 	{
 		const auto claim{_config.find("irods_user_claim")};
-		const auto match{_config.find("irods_user_claim")};
-		const auto replace{_config.find("irods_user_claim")};
+		const auto match{_config.find("match_regex")};
+		const auto replace{_config.find("replace_format")};
 
 		if (claim == std::end(_config)) {
 			throw std::logic_error{"Unable to find [irods_user_claim] in provided config."};
 		}
 		if (match == std::end(_config)) {
-			throw std::logic_error{"Unable to find [irods_user_claim] in provided config."};
+			throw std::logic_error{"Unable to find [match_regex] in provided config."};
 		}
 		if (replace == std::end(_config)) {
-			throw std::logic_error{"Unable to find [irods_user_claim] in provided config."};
+			throw std::logic_error{"Unable to find [replace_format] in provided config."};
 		}
 
 		claim_to_match = claim->get<std::string>();
@@ -43,7 +44,7 @@ namespace
 	auto match(const nlohmann::json& _params) -> std::optional<std::string>
 	{
 		if (auto claim{_params.find(claim_to_match)}; claim != std::end(_params)) {
-		  return std::regex_replace(claim->get<std::string>(), match_regex, replace_fmt);
+		  return boost::regex_replace(claim->get<std::string>(), match_regex, replace_fmt);
 		}
 
 		return std::nullopt;
