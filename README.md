@@ -535,3 +535,9 @@ In this particular example, `claim_to_map_user` is the claim that maps the OpenI
 
 To develop your own plugin, make sure to conform to the plugin interface defined in [interface.h](./plugins/user_mapping/include/irods/http_api/plugins/user_mapping/interface.h).
 Further documentation on the interface functions are within the file.
+
+## Secure Communication (SSL/TLS)
+
+The HTTP API does not handle SSL/TLS termination itself. Deployments should plan to provide a reverse proxy to handle SSL/TLS termination _in front of_ the HTTP API for secure communication with the client.
+
+Popular proxy servers include nginx, Apache httpd, and HAProxy.
