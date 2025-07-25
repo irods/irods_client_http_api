@@ -479,7 +479,7 @@ Before you can use OpenID with iRODS, you must enable one of the two shipped plu
 #### Local File plugin
 
 Within the `user_mapping` stanza, set `plugin_path` to the absolute path of `libirods_http_api_plugin-local_file.so`.
-On most Linux-based systems, the HTTP API user mapping plugins will be installed under `/usr/lib/irods_http_api/user_mapping`.
+On most Linux-based systems, the HTTP API user mapping plugins will be installed under `/usr/lib/irods_http_api/plugins/user_mapping`.
 
 This plugin allows for the defining of mappings of iRODS users based on desired attributes.
 The attributes specified within the file can be updated, and the plugin will reload the file
@@ -514,7 +514,7 @@ An example of what the JSON file can contain is as follows:
 #### User Claim plugin
 
 Within the `user_mapping` stanza, set `plugin_path` to the absolute path of `libirods_http_api_plugin-user_claim.so`.
-On most Linux-based systems, the HTTP API user mapping plugins will be installed under `/usr/lib/irods_http_api/user_mapping`.
+On most Linux-based systems, the HTTP API user mapping plugins will be installed under `/usr/lib/irods_http_api/plugins/user_mapping`.
 
 This plugin looks for a claim that provides a direct mapping of an authenticated OpenID user to an iRODS user.
 This requires that you have the ability to add a claim within the OpenID Provider.
