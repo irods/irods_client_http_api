@@ -2353,13 +2353,19 @@ class test_data_objects_endpoint(unittest.TestCase):
             self.assertEqual(result['rows'][0][0], '1')
             self.assertEqual(result['rows'][0][1], '0')
 
-            # Change the replica's status and data size using the modify_replica operation.
+            # Change the replica's status, data size, and access time.
+            new_replica_status = 0
+            new_data_size = 15
+            new_atime = '01700000000'
             r = requests.post(self.url_endpoint, headers=headers, data={
                 'op': 'modify_replica',
                 'lpath': data_object,
                 'replica-number': 0,
-                'new-data-replica-status': 0,
-                'new-data-size': 15
+                'new-data-replica-status': new_replica_status,
+                'new-data-size': new_data_size,
+                # TODO(#440): Test needs to know what version of iRODS the HTTP API is connected to
+                # in order to truly test modification of a replica's atime.
+                'new-data-access-time': new_atime
             })
             self.logger.debug(r.content)
             self.assertEqual(r.status_code, 200)
@@ -2368,15 +2374,16 @@ class test_data_objects_endpoint(unittest.TestCase):
             # Show the replica's status and size has changed in the catalog.
             r = requests.get(f'{self.url_base}/query', headers=headers, params={
                 'op': 'execute_genquery',
-                'query': f"select DATA_REPL_STATUS, DATA_SIZE where COLL_NAME = '{os.path.dirname(data_object)}' and DATA_NAME = '{os.path.basename(data_object)}'"
+                'query': f"select DATA_REPL_STATUS, DATA_SIZE, DATA_ACCESS_TIME where COLL_NAME = '{os.path.dirname(data_object)}' and DATA_NAME = '{os.path.basename(data_object)}'"
             })
             self.logger.debug(r.content)
             self.assertEqual(r.status_code, 200)
 
             result = r.json()
             self.assertEqual(result['irods_response']['status_code'], 0)
-            self.assertEqual(result['rows'][0][0], '0')
-            self.assertEqual(result['rows'][0][1], '15')
+            self.assertEqual(result['rows'][0][0], str(new_replica_status))
+            self.assertEqual(result['rows'][0][1], str(new_data_size))
+            self.assertEqual(result['rows'][0][2], new_atime)
 
         finally:
             # Remove the data object.

@@ -1181,7 +1181,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Modifies properties of a single replica.
 
-**WARNING:** This operation requires rodsadmin level privileges and should only be used when there isn't a safer option. Misuse can lead to catalog inconsistencies and unexpected behavior.
+> [!WARNING]
+> This operation requires rodsadmin level privileges and should only be used when there isn't a safer option. Misuse can lead to catalog inconsistencies and unexpected behavior.
 
 #### Request
 
@@ -1207,10 +1208,13 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     --data-urlencode 'new-data-size=<integer>' \
     --data-urlencode 'new-data-status=<string>' \
     --data-urlencode 'new-data-type-name=<string>' \
-    --data-urlencode 'new-data-version=<string>'
+    --data-urlencode 'new-data-version=<string>' \
+    --data-urlencode 'new-data-access-time=<string>' # Must be 11 bytes in length and padded with leading zeros.
 ```
 
 `resource-hierarchy` and `replica-number` are mutually exclusive parameters.
+
+`new-data-access-time` is supported by iRODS 5 only. Attempting to modify this property while connected to an iRODS server earlier than 5.0.0 will result in an HTTP status code of 400.
 
 All parameters having a prefix of `new-` represent modifiable properties of the target replica. At least one modifiable property is required for the operation to succeed. This operation allows multiple properties to be modified in a single call.
 
