@@ -525,7 +525,9 @@ The configuration for this plugin is as follows:
 
 ```json
 "configuration": {
-    "irods_user_claim": "claim_to_map_user"
+    "irods_user_claim": "claim_to_map_user",
+    "match_regex": "(\\w+).*",
+    "replace_format": "\\U${1}\\E"
 }
 ```
 
