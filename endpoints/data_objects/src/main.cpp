@@ -87,6 +87,7 @@ namespace
 		parallel_write_stream(
 			const std::string& _client_username,
 			const std::string& _path,
+			const std::optional<std::string>& _resource,
 			const std::ios_base::openmode _openmode,
 			const std::optional<std::string>& _ticket,
 			const irods::experimental::io::odstream* _base = nullptr)
@@ -132,6 +133,9 @@ namespace
 
 			if (_base) {
 				stream_.open(*tp_, _base->replica_token(), _path, _base->replica_number(), _openmode);
+			}
+			else if (_resource) {
+				stream_.open(*tp_, _path, irods::experimental::io::root_resource_name{*_resource}, _openmode);
 			}
 			else {
 				stream_.open(*tp_, _path, _openmode);
@@ -1277,9 +1281,14 @@ namespace
 						ticket = iter->second;
 					}
 
+					std::optional<std::string> resource;
+					if (const auto iter = _args.find("resource"); iter != std::end(_args)) {
+						resource = iter->second;
+					}
+
 					// Open the primary stream.
 					pw_streams.emplace_back(std::make_shared<parallel_write_stream>(
-						client_info.username, lpath_iter->second, openmode, ticket));
+						client_info.username, lpath_iter->second, resource, openmode, ticket));
 
 					auto& first_stream = pw_streams.front()->stream();
 					logging::debug(
@@ -1294,7 +1303,12 @@ namespace
 					logging::trace(*_sess_ptr, "{}: Opening secondary output streams to [{}].", fn, lpath_iter->second);
 					for (int i = 0; i < stream_count; ++i) {
 						pw_streams.emplace_back(std::make_shared<parallel_write_stream>(
-							client_info.username, lpath_iter->second, openmode, ticket, &pw_streams.front()->stream()));
+							client_info.username,
+							lpath_iter->second,
+							std::nullopt,
+							openmode,
+							ticket,
+							&pw_streams.front()->stream()));
 					}
 				}
 				catch (const irods::exception& e) {

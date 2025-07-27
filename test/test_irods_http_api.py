@@ -2159,6 +2159,259 @@ class test_data_objects_endpoint(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.NOT_A_DATA_OBJECT)
 
+    def test_parallel_write_init_operation_supports_targeting_specific_resource(self):
+        rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+
+        parent_resc = 'pt_parallel_write_init_resc'
+        child_resc = 'ufs_parallel_write_init_resc'
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/parallel_write_init_supports_targeting_replica.txt'
+
+        # Generate 96kb string.
+        # This is the data we'll upload to the HTTP API.
+        data96kb = ('A' * 32768) + ('B' * 32768) + ('C' * 32768)
+
+        # Indicates whether the parallel_write_shutdown operation needs to be called.
+        # This is used for clean up when errors occur.
+        invoke_parallel_write_shutdown = False
+
+        try:
+            # Create a passthru resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'create',
+                'name': parent_resc,
+                'type': 'passthru'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Create a unixfilesystem resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'create',
+                'name': child_resc,
+                'type': 'unixfilesystem',
+                'host': self.server_hostname,
+                'vault-path': os.path.join('/tmp', f'{child_resc}_vault')
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Make the unixfilesystem resource a child of the passthru resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'add_child',
+                'parent-name': parent_resc,
+                'child-name': child_resc
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Tell the server we're about to do a parallel write.
+            stream_count = 3
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'parallel_write_init',
+                'lpath': data_object,
+                'resource': parent_resc,
+                'stream-count': stream_count
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            parallel_write_handle = result['parallel_write_handle']
+
+            # Make sure the parallel_write_shutdown operation is invoked now that we
+            # have a parallel-write handle.
+            invoke_parallel_write_shutdown = True
+
+            # Write to the data object using the parallel write handle.
+            futures = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=stream_count) as executor:
+                chunk_size = len(data96kb) // stream_count
+                self.logger.debug(f'chunk size = [{chunk_size}]')
+                for i in range(stream_count):
+                    chunk_start = i * chunk_size
+                    futures.append(executor.submit(self.execute_write_using_header_based_form, **{
+                        'bearer_token': self.rodsuser_bearer_token,
+                        'fields': {
+                            'op': 'write',
+                            'parallel-write-handle': parallel_write_handle,
+                            'offset': chunk_start,
+                            'stream-index': i
+                        },
+                        'bytes': data96kb[chunk_start : chunk_start + chunk_size]
+                    }))
+
+                for f in concurrent.futures.as_completed(futures):
+                    result = f.result()
+                    self.logger.debug(result)
+                    self.assertEqual(result['irods_response']['status_code'], 0)
+
+            # End the parallel write.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'parallel_write_shutdown',
+                'parallel-write-handle': parallel_write_handle
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # The data object was closed successfully.
+            # Do not invoke the parallel_write_shutdown operation in the finally block.
+            invoke_parallel_write_shutdown = False
+
+            # Show the data was written to the iRODS server safely.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'calculate_checksum',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['checksum'], 'sha2:YS0DmQW7u51PaFVYl/iTsHFOctKtP1MZZ8JLnBwCLMI=')
+
+            # Show the data object has one replica on the target resource.
+            r = requests.get(f'{self.url_base}/query', headers=rodsuser_headers, params={
+                'op': 'execute_genquery',
+                'query': f"select COLL_NAME, DATA_NAME, RESC_NAME where DATA_NAME = '{os.path.basename(data_object)}'"
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(len(result['rows']), 1)
+            self.assertEqual(result['rows'][0][0], os.path.dirname(data_object))
+            self.assertEqual(result['rows'][0][1], os.path.basename(data_object))
+            self.assertEqual(result['rows'][0][2], child_resc)
+
+        finally:
+            # End the parallel write in case something failed.
+            # This avoids leaking of parallel-write resources in the HTTP API server.
+            if invoke_parallel_write_shutdown:
+                r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                    'op': 'parallel_write_shutdown',
+                    'parallel-write-handle': parallel_write_handle
+                })
+                self.logger.debug(r.content)
+
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
+            # Detach the child resource from the parent resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'remove_child',
+                'parent-name': parent_resc,
+                'child-name': child_resc
+            })
+            self.logger.debug(r.content)
+
+            # Remove the unixfilesystem resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'remove',
+                'name': child_resc
+            })
+            self.logger.debug(r.content)
+
+            # Remove the passthru resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'remove',
+                'name': parent_resc
+            })
+            self.logger.debug(r.content)
+
+    def test_parallel_write_init_operation_returns_an_error_when_targeting_child_resource(self):
+        rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+
+        parent_resc = 'pt_parallel_write_init_resc'
+        child_resc = 'ufs_parallel_write_init_resc'
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/parallel_write_init_targeting_child_resource.txt'
+
+        try:
+            # Create a passthru resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'create',
+                'name': parent_resc,
+                'type': 'passthru'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Create a unixfilesystem resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'create',
+                'name': child_resc,
+                'type': 'unixfilesystem',
+                'host': self.server_hostname,
+                'vault-path': os.path.join('/tmp', f'{child_resc}_vault')
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Make the unixfilesystem resource a child of the passthru resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'add_child',
+                'parent-name': parent_resc,
+                'child-name': child_resc
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Tell the server we're about to do a parallel write.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'parallel_write_init',
+                'lpath': data_object,
+                'resource': child_resc,
+                'stream-count': 3
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+
+            # Stat the data object to show it doesn't exist.
+            r = requests.get(self.url_endpoint, headers=rodsuser_headers, params={
+                'op': 'stat',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.NOT_A_DATA_OBJECT)
+
+        finally:
+            # Detach the child resource from the parent resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'remove_child',
+                'parent-name': parent_resc,
+                'child-name': child_resc
+            })
+            self.logger.debug(r.content)
+
+            # Remove the unixfilesystem resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'remove',
+                'name': child_resc
+            })
+            self.logger.debug(r.content)
+
+            # Remove the passthru resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'remove',
+                'name': parent_resc
+            })
+            self.logger.debug(r.content)
+
     def test_non_parallel_writes_using_header_based_form_with_data_exceeding_internal_write_threshold(self):
         # This test assumes the HTTP API is configured to use a value smaller than
         # 64kb for "/irods_client/max_number_of_bytes_per_write_operation". This is

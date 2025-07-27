@@ -954,10 +954,11 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     -H 'Authorization: Bearer <token>' \
     --data-urlencode 'op=parallel_write_init' \
     --data-urlencode 'lpath=<string>' \ # Absolute logical path to a data object.
-    --data-urlencode 'stream-count=<integer>' \ # Number of streams to open.
+    --data-urlencode 'resource=<string>' \ # The root resource to write to. Optional.
     --data-urlencode 'truncate=<integer>' \ # 0 or 1. Defaults to 1. Truncates the data object before writing. Optional.
     --data-urlencode 'append=<integer>' \ # 0 or 1. Defaults to 0. Appends the bytes to the data object. Optional.
-    --data-urlencode 'ticket=<string>' # The ticket to enable for all streams. Optional.
+    --data-urlencode 'ticket=<string>' \ # The ticket to enable for all streams. Optional.
+    --data-urlencode 'stream-count=<integer>' # Number of streams to open.
 ```
 
 #### Response
