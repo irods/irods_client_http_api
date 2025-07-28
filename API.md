@@ -966,9 +966,11 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
         "status_code": 0,
         "status_message": "string" // Optional
     },
-    "parallel_write_handle": "string"
+    "parallel_write_handle": "string" // Available only if the operation was successful.
 }
 ```
+
+If the data object cannot be opened, the HTTP API will return an iRODS error code of -175000 (`INVALID_HANDLE`). This error code indicates that the data object may be locked.
 
 ### parallel_write_shutdown
 

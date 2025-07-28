@@ -138,7 +138,7 @@ namespace
 			}
 
 			if (!stream_) {
-				THROW(SYS_INTERNAL_ERR, fmt::format("Could not open output stream to [{}].", _path));
+				THROW(INVALID_HANDLE, fmt::format("Could not open output stream to [{}].", _path));
 			}
 		} // parallel_write_stream (constructor)
 
@@ -1278,9 +1278,14 @@ namespace
 				}
 				catch (const irods::exception& e) {
 					logging::error(*_sess_ptr, "{}: {}", fn, e.client_display_what());
-					logging::error(
-						*_sess_ptr, "{}: Could not open one or more output streams to [{}].", fn, lpath_iter->second);
-					res.result(http::status::internal_server_error);
+					// clang-format off
+					res.body() = json{
+						{"irods_response", {
+							{"status_code", e.code()},
+							{"status_message", e.client_display_what()}
+						}}
+					}.dump();
+					// clang-format on
 					res.prepare_payload();
 					return _sess_ptr->send(std::move(res));
 				}
