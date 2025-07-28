@@ -918,7 +918,7 @@ Unlike method 1, this method does not buffer the full request before processing 
 
 No adjustments to the Content-Type are necessary.
 
-#### Notes
+##### Notes
 
 `parallel-write-handle` and `stream-index` only apply when writing to a replica in parallel. To obtain a parallel-write-handle, see [parallel_write_init](#parallel_write_init).
 
@@ -936,6 +936,8 @@ If an HTTP status code of 200 is returned, the body of the response will contain
 ```
 
 If there was an error, expect an HTTP status code in either the 4XX or 5XX range.
+
+If the data object cannot be opened, the HTTP API will return an iRODS error code of -175000 (`INVALID_HANDLE`). This error code indicates that the data object may be locked.
 
 ### parallel_write_init
 

@@ -1093,8 +1093,15 @@ namespace
 				}
 
 				if (!*out_ptr) {
-					logging::error(*_sess_ptr, "{}: Could not open data object for write.", fn);
-					res.result(http::status::internal_server_error);
+					logging::error(*_sess_ptr, "{}: Output stream to data object is in a bad state.", fn);
+					// clang-format off
+					res.body() = json{
+						{"irods_response", {
+							{"status_code", INVALID_HANDLE},
+							{"status_message", "Output stream to data object is in a bad state."}
+						}}
+					}.dump();
+					// clang-format on
 					res.prepare_payload();
 					return _sess_ptr->send(std::move(res));
 				}
@@ -1106,9 +1113,23 @@ namespace
 						out_ptr->seekp(std::stoll(iter->second));
 					}
 					catch (const std::exception& e) {
-						logging::error(
-							*_sess_ptr, "{}: Could not seek to position [{}] in data object.", fn, iter->second);
+						logging::error(*_sess_ptr, "{}: Could not seek to position [{}] in data object.", fn, iter->second);
 						res.result(http::status::bad_request);
+						res.prepare_payload();
+						return _sess_ptr->send(std::move(res));
+					}
+
+					if (!*out_ptr) {
+						logging::error(
+							*_sess_ptr, "{}: Output stream to data object is in a bad state.", __func__);
+						// clang-format off
+						res.body() = json{
+							{"irods_response", {
+								{"status_code", INVALID_HANDLE},
+								{"status_message", "Output stream to data object is in a bad state."}
+							}}
+						}.dump();
+						// clang-format on
 						res.prepare_payload();
 						return _sess_ptr->send(std::move(res));
 					}
@@ -3038,8 +3059,15 @@ namespace irods::http::endpoint_operation
 			}
 
 			if (!*out_ptr) {
-				logging::error(*_sess_ptr, "{}: Could not open data object for write.", __func__);
-				res.result(::http::status::internal_server_error);
+				logging::error(*_sess_ptr, "{}: Output stream to data object is in a bad state.", __func__);
+				// clang-format off
+				res.body() = json{
+					{"irods_response", {
+						{"status_code", INVALID_HANDLE},
+						{"status_message", "Output stream to data object is in a bad state."}
+					}}
+				}.dump();
+				// clang-format on
 				res.prepare_payload();
 				return _sess_ptr->send(std::move(res));
 			}
@@ -3051,9 +3079,23 @@ namespace irods::http::endpoint_operation
 					out_ptr->seekp(std::stoll(iter->value()));
 				}
 				catch (const std::exception& e) {
+					logging::error(*_sess_ptr, "{}: Could not seek to position [{}] in data object.", __func__, iter->value());
+					res.result(http::status::bad_request);
+					res.prepare_payload();
+					return _sess_ptr->send(std::move(res));
+				}
+
+				if (!*out_ptr) {
 					logging::error(
-						*_sess_ptr, "{}: Could not seek to position [{}] in data object.", __func__, iter->value());
-					res.result(::http::status::bad_request);
+						*_sess_ptr, "{}: Output stream to data object is in a bad state.", __func__);
+					// clang-format off
+					res.body() = json{
+						{"irods_response", {
+							{"status_code", INVALID_HANDLE},
+							{"status_message", "Output stream to data object is in a bad state."}
+						}}
+					}.dump();
+					// clang-format on
 					res.prepare_payload();
 					return _sess_ptr->send(std::move(res));
 				}
