@@ -244,8 +244,12 @@ constexpr auto default_jsonschema() -> std::string_view
                                 "require_aud_member_from_introspection_endpoint": {
                                     "type": "boolean"
                                 },
-                                "tls_certificates_directory": {
-                                    "type": "string"
+                                "tls_certificate_directories": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "minItems": "1"
                                 },
                                 "user_mapping": {
                                     "type": "object",
@@ -269,7 +273,6 @@ constexpr auto default_jsonschema() -> std::string_view
                                 "provider_url",
                                 "client_id",
                                 "require_aud_member_from_introspection_endpoint",
-                                "tls_certificates_directory",
                                 "user_mapping",
                                 "client_secret"
                             ]
@@ -501,7 +504,7 @@ auto print_configuration_template() -> void
                     "configuration": {{
                     }}
                 }},
-                "tls_certificates_directory": "<string>"
+                "tls_certificate_directories": ["<string>"]
             }}
         }},
 

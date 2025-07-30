@@ -288,11 +288,12 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
                     }
                 },
 
-                // The path to the TLS certificates directory used to establish
+                // A list of paths to the TLS certificates directories used to establish
                 // secure connections between the HTTP API and the OpenID provider.
-                // Typically, this should point to a standard certificate directory
-                // such as "/etc/ssl/cert".
-                "tls_certificates_directory": "/path/to/certs"
+                // Use this setting to point to a non-standard certificate directory.
+                // When set, this will not include the standard certificate directory
+                // by default.
+                "tls_certificate_directories": ["/path/to/certs"]
             }
         },
 
