@@ -1110,6 +1110,15 @@ namespace
 					return _sess_ptr->send(std::move(res));
 				}
 
+				auto close_output_stream_if_not_parallel_write_stream = [&is_parallel_write, out_ptr] {
+					// If we're performing a normal write, close the stream before returning a response.
+					// This is required so that the iRODS server triggers appropriate policy before handing
+					// back control to the client. For example, replication resources and synchronous replication.
+					if (!is_parallel_write) {
+						out_ptr->close();
+					}
+				};
+
 				auto iter = _args.find("offset");
 				if (iter != std::end(_args)) {
 					logging::trace(*_sess_ptr, "{}: Setting offset for write.", fn);
@@ -1117,15 +1126,17 @@ namespace
 						out_ptr->seekp(std::stoll(iter->second));
 					}
 					catch (const std::exception& e) {
-						logging::error(*_sess_ptr, "{}: Could not seek to position [{}] in data object.", fn, iter->second);
+						logging::error(
+							*_sess_ptr, "{}: Could not seek to position [{}] in data object.", fn, iter->second);
+						close_output_stream_if_not_parallel_write_stream();
 						res.result(http::status::bad_request);
 						res.prepare_payload();
 						return _sess_ptr->send(std::move(res));
 					}
 
 					if (!*out_ptr) {
-						logging::error(
-							*_sess_ptr, "{}: Output stream to data object is in a bad state.", __func__);
+						logging::error(*_sess_ptr, "{}: Output stream to data object is in a bad state.", __func__);
+						close_output_stream_if_not_parallel_write_stream();
 						// clang-format off
 						res.body() = json{
 							{"irods_response", {
@@ -1142,6 +1153,7 @@ namespace
 				iter = _args.find("bytes");
 				if (iter == std::end(_args)) {
 					logging::error(*_sess_ptr, "{}: Missing [bytes] parameter.", fn);
+					close_output_stream_if_not_parallel_write_stream();
 					return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
 				}
 
@@ -1150,6 +1162,7 @@ namespace
 				if (!std::cmp_equal(remaining_bytes, iter->second.size())) {
 					logging::error(
 						*_sess_ptr, "{}: Requirement violated: [count] and size of [bytes] do not match.", fn);
+					close_output_stream_if_not_parallel_write_stream();
 					return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
 				}
 
@@ -3086,6 +3099,15 @@ namespace irods::http::endpoint_operation
 				return _sess_ptr->send(std::move(res));
 			}
 
+			auto close_output_stream_if_not_parallel_write_stream = [&is_parallel_write, out_ptr] {
+				// If we're performing a normal write, close the stream before returning a response.
+				// This is required so that the iRODS server triggers appropriate policy before handing
+				// back control to the client. For example, replication resources and synchronous replication.
+				if (!is_parallel_write) {
+					out_ptr->close();
+				}
+			};
+
 			auto iter = headers.find("irods-api-request-offset");
 			if (iter != std::end(headers)) {
 				logging::trace(*_sess_ptr, "{}: Setting offset for write.", __func__);
@@ -3093,15 +3115,17 @@ namespace irods::http::endpoint_operation
 					out_ptr->seekp(std::stoll(iter->value()));
 				}
 				catch (const std::exception& e) {
-					logging::error(*_sess_ptr, "{}: Could not seek to position [{}] in data object.", __func__, iter->value());
-					res.result(http::status::bad_request);
+					logging::error(
+						*_sess_ptr, "{}: Could not seek to position [{}] in data object.", __func__, iter->value());
+					close_output_stream_if_not_parallel_write_stream();
+					res.result(::http::status::bad_request);
 					res.prepare_payload();
 					return _sess_ptr->send(std::move(res));
 				}
 
 				if (!*out_ptr) {
-					logging::error(
-						*_sess_ptr, "{}: Output stream to data object is in a bad state.", __func__);
+					logging::error(*_sess_ptr, "{}: Output stream to data object is in a bad state.", __func__);
+					close_output_stream_if_not_parallel_write_stream();
 					// clang-format off
 					res.body() = json{
 						{"irods_response", {

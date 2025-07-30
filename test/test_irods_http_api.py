@@ -2412,6 +2412,54 @@ class test_data_objects_endpoint(unittest.TestCase):
             })
             self.logger.debug(r.content)
 
+    def test_write_operation_returns_http_status_code_400_on_non_integer_offset_value(self):
+        headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/non_integer_value'
+        non_integer_offset = 'not_an_integer'
+
+        try:
+            # Show that passing a non-integer value as the offset results in an HTTP status
+            # code of 400.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'write',
+                'lpath': data_object,
+                'offset': non_integer_offset,
+                'bytes': 'ignored'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 400)
+
+            # Do it again but this time, send the request as multipart/form-data.
+            r = requests.post(self.url_endpoint, headers=headers, files={
+                'op': 'write',
+                'lpath': data_object,
+                'offset': non_integer_offset,
+                'bytes': 'ignored'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 400)
+
+            # Now send the request using the header-based form of the write operation.
+            r = requests.post(self.url_endpoint, headers={
+                'Authorization': headers['Authorization'],
+                'Content-Type': 'application/octet-stream',
+                'irods-api-request-op': 'write',
+                'irods-api-request-lpath': data_object,
+                'irods-api-request-offset': non_integer_offset
+            }, data='ignored')
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 400)
+
+        finally:
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
     def test_non_parallel_writes_using_header_based_form_with_data_exceeding_internal_write_threshold(self):
         # This test assumes the HTTP API is configured to use a value smaller than
         # 64kb for "/irods_client/max_number_of_bytes_per_write_operation". This is
