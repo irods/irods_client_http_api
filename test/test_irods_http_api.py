@@ -2099,6 +2099,66 @@ class test_data_objects_endpoint(unittest.TestCase):
             })
             self.logger.debug(r.content)
 
+    def test_write_operations_return_INVALID_HANDLE_on_bad_output_streams(self):
+        # The write operations that are invoked by this test rely on the fact that the
+        # dstream objects used by the HTTP API do NOT expose the underlying iRODS error
+        # codes.
+
+        headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+        data_object = f'/{self.zone_name}/home/inaccessible_logical_path.txt'
+
+        # Show that attempting to write data to an inaccessible logical path results
+        # in the generic iRODS error code. This invocation encodes the request as
+        # application/x-www-form-urlencoded.
+        r = requests.post(self.url_endpoint, headers=headers, data={
+            'op': 'write',
+            'lpath': data_object,
+            'bytes': 'ignored'
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+
+        # Do it again but this time, send the request as multipart/form-data.
+        r = requests.post(self.url_endpoint, headers=headers, files={
+            'op': 'write',
+            'lpath': data_object,
+            'bytes': 'ignored'
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+
+        # Now send the request using the header-based form of the write operation.
+        r = requests.post(self.url_endpoint, headers={
+            'Authorization': headers['Authorization'],
+            'Content-Type': 'application/octet-stream',
+            'irods-api-request-op': 'write',
+            'irods-api-request-lpath': data_object
+        }, data='ignored')
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+
+        # Show that the result is the same when using the parallel_write_init operation.
+        r = requests.post(self.url_endpoint, headers=headers, files={
+            'op': 'parallel_write_init',
+            'lpath': data_object,
+            'stream-count': 2
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+
+        # Stat the data object to show it doesn't exist.
+        r = requests.get(self.url_endpoint, headers=headers, params={
+            'op': 'stat',
+            'lpath': data_object
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.NOT_A_DATA_OBJECT)
+
     def test_non_parallel_writes_using_header_based_form_with_data_exceeding_internal_write_threshold(self):
         # This test assumes the HTTP API is configured to use a value smaller than
         # 64kb for "/irods_client/max_number_of_bytes_per_write_operation". This is
@@ -2712,7 +2772,8 @@ class test_data_objects_endpoint(unittest.TestCase):
                 'stream-count': 2
             })
             self.logger.debug(r.content)
-            self.assertEqual(r.status_code, 500)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
 
         finally:
             # End the parallel write in case something failed.
@@ -2745,7 +2806,8 @@ class test_data_objects_endpoint(unittest.TestCase):
             'stream-count': 2
         })
         self.logger.debug(r.content)
-        self.assertEqual(r.status_code, 500)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
 
 class test_information_endpoint(unittest.TestCase):
 
