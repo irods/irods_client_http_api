@@ -269,7 +269,6 @@ constexpr auto default_jsonschema() -> std::string_view
                                 "provider_url",
                                 "client_id",
                                 "require_aud_member_from_introspection_endpoint",
-                                "tls_certificates_directory",
                                 "user_mapping",
                                 "client_secret"
                             ]
