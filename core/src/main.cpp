@@ -244,7 +244,7 @@ constexpr auto default_jsonschema() -> std::string_view
                                 "require_aud_member_from_introspection_endpoint": {
                                     "type": "boolean"
                                 },
-                                "tls_certificates_directory": {
+                                "tls_certificates_directories": {
                                     "type": "array",
                                     "items": {
                                         "type": "string"
@@ -503,7 +503,7 @@ auto print_configuration_template() -> void
                     "configuration": {{
                     }}
                 }},
-                "tls_certificates_directory": [ "<string>" ]
+                "tls_certificates_directories": [ "<string>" ]
             }}
         }},
 
