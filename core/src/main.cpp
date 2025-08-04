@@ -245,7 +245,10 @@ constexpr auto default_jsonschema() -> std::string_view
                                     "type": "boolean"
                                 },
                                 "tls_certificates_directory": {
-                                    "type": "string"
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
                                 },
                                 "user_mapping": {
                                     "type": "object",
@@ -500,7 +503,7 @@ auto print_configuration_template() -> void
                     "configuration": {{
                     }}
                 }},
-                "tls_certificates_directory": "<string>"
+                "tls_certificates_directory": [ "<string>" ]
             }}
         }},
 

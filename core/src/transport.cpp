@@ -136,8 +136,10 @@ namespace irods::http
 		const auto config{irods::http::globals::oidc_configuration()};
 		ctx.set_default_verify_paths();
 
-		if (const auto cert_path{config.find("tls_certificates_directory")}; cert_path != std::end(config)) {
-			ctx.add_verify_path(cert_path->get_ref<const std::string&>());
+		if (const auto cert_paths{config.find("tls_certificates_directory")}; cert_paths != std::end(config)) {
+			for (const auto& cert_path : *cert_paths) {
+				ctx.add_verify_path(cert_path.get_ref<const std::string&>());
+			}
 		}
 
 		ctx.set_verify_mode(boost::asio::ssl::verify_peer);
