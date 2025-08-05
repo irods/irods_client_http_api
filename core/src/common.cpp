@@ -339,25 +339,30 @@ namespace irods::http
 				config.contains(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"})};
 			if (oidc_conf_exists) {
 				nlohmann::json json_res;
+				const auto& validation_method{irods::http::globals::oidc_configuration()
+				                                  .at("access_token_validation_method")
+				                                  .get_ref<const std::string&>()};
 
 				// Try parsing token as JWT Access Token
-				try {
-					auto token{jwt::decode<jwt::traits::nlohmann_json>(bearer_token)};
-					auto possible_json_res{openid::validate_using_local_validation(token)};
+				if (validation_method == "local_validation") {
+					try {
+						auto token{jwt::decode<jwt::traits::nlohmann_json>(bearer_token)};
+						auto possible_json_res{openid::validate_using_local_validation(token)};
 
-					if (possible_json_res) {
-						json_res = *possible_json_res;
+						if (possible_json_res) {
+							json_res = *possible_json_res;
+						}
+					}
+					// Parsing of the token failed, this is not a JWT access token
+					catch (const std::exception& e) {
+						logging::debug("{}: {}", __func__, e.what());
 					}
 				}
-				// Parsing of the token failed, this is not a JWT access token
-				catch (const std::exception& e) {
-					logging::debug("{}: {}", __func__, e.what());
-				}
 
-				// Use introspection endpoint if it exists and local validation fails
+				// Use introspection endpoint if it exists
 				static const auto introspection_endpoint_exists{
 					irods::http::globals::oidc_endpoint_configuration().contains("introspection_endpoint")};
-				if (json_res.empty() && introspection_endpoint_exists) {
+				if (introspection_endpoint_exists && validation_method == "introspection") {
 					auto possible_json_res{openid::validate_using_introspection_endpoint(bearer_token)};
 					if (possible_json_res) {
 						json_res = *possible_json_res;
