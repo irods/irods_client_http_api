@@ -273,7 +273,7 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
                 "state_timeout_in_seconds": 600,
 
                 // The desired method with which to validate OIDC access tokens
-                // with. The two methods supported are "local_validation" and
+                // The two methods supported are "local_validation" and
                 // "introspection".
                 "access_token_validation_method": "local_validation"
 
