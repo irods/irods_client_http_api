@@ -504,7 +504,7 @@ auto print_configuration_template() -> void
                     "configuration": {{
                     }}
                 }},
-                "tls_certificates_directories": [ "<string>" ]
+                "tls_certificates_directories": ["<string>"]
             }}
         }},
 

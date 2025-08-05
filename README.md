@@ -292,7 +292,7 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
                 // secure connections between the HTTP API and the OpenID provider.
                 // When set, this will not include the standard certificate directory,
                 // such as "/etc/ssl/cert", by default.
-                "tls_certificates_directories": [ "/path/to/certs" ]
+                "tls_certificates_directories": ["/path/to/certs"]
             }
         },
 
