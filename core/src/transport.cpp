@@ -134,12 +134,17 @@ namespace irods::http
 	{
 		boost::asio::ssl::context ctx{boost::asio::ssl::context::tlsv12_client};
 		const auto config{irods::http::globals::oidc_configuration()};
-		ctx.set_default_verify_paths();
 
 		if (const auto cert_paths{config.find("tls_certificates_directories")}; cert_paths != std::end(config)) {
+			if (cert_paths->empty()) {
+				throw std::logic_error{"[tls_certificates_directories] set but no paths were provided."};
+			}
 			for (const auto& cert_path : *cert_paths) {
 				ctx.add_verify_path(cert_path.get_ref<const std::string&>());
 			}
+		}
+		else {
+			ctx.set_default_verify_paths();
 		}
 
 		ctx.set_verify_mode(boost::asio::ssl::verify_peer);
