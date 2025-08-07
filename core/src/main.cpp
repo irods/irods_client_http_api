@@ -241,6 +241,9 @@ constexpr auto default_jsonschema() -> std::string_view
                                 "access_token_secret": {
                                     "type": "string"
                                 },
+                                "access_token_validation_method": {
+                                    "enum": ["local_validation", "introspection"]
+                                },
                                 "require_aud_member_from_introspection_endpoint": {
                                     "type": "boolean"
                                 },
@@ -496,6 +499,7 @@ auto print_configuration_template() -> void
                 "client_id": "<string>",
                 "client_secret": "<string>",
                 "require_aud_member_from_introspection_endpoint": false,
+                "access_token_validation_method": "local_validation",
                 "user_mapping": {{
                     "plugin_path": "<string>",
                     "configuration": {{
