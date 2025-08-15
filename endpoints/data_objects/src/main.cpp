@@ -1615,6 +1615,10 @@ namespace
 						addKeyVal(&input.condInput, RESC_NAME_KW, iter->second.c_str());
 					}
 
+					if (const auto iter = _args.find("src-replica-number"); iter != std::end(_args)) {
+						addKeyVal(&input.condInput, REPL_NUM_KW, iter->second.c_str());
+					}
+
 					if (const auto iter = _args.find("admin"); iter != std::end(_args) && iter->second == "1") {
 						addKeyVal(&input.condInput, ADMIN_KW, "");
 					}

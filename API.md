@@ -790,6 +790,7 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     --data-urlencode 'op=replicate' \
     --data-urlencode 'lpath=<string>' \ # Absolute logical path to a data object.
     --data-urlencode 'src-resource=<string>' \ # The resource to replicate from.
+    --data-urlencode 'src-replica-number=<integer>' \ # The replica number of the replica to replicate from.
     --data-urlencode 'dst-resource=<string>' \ # The resource to replicate to.
     --data-urlencode 'admin=<integer>' # 0 or 1. Defaults to 0. Execute as a rodsadmin. Optional.
 ```
