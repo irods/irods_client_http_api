@@ -252,7 +252,7 @@ constexpr auto default_jsonschema() -> std::string_view
                                     "items": {
                                         "type": "string"
                                     },
-                                    "minItems": "1"
+                                    "minItems": 1
                                 },
                                 "user_mapping": {
                                     "type": "object",
