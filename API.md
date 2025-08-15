@@ -892,11 +892,15 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     -H 'Authorization: Bearer <token>' \
     --data-urlencode 'op=read' \
     --data-urlencode 'lpath=<string>' \ # Absolute logical path to a data object.
+    --data-urlencode 'resource=<string>' \ # The root resource holding the replica to read from. Optional.
+    --data-urlencode 'replica-number=<integer>' \ # The replica number of the replica to read from. Optional.
     --data-urlencode 'offset=<integer>' \ # Number of bytes to skip. Defaults to 0. Optional.
     --data-urlencode 'count=<integer>' \ # Number of bytes to read. Optional.
     --data-urlencode 'ticket=<string>' \ # The ticket to enable before reading the data object. Optional.
     -G
 ```
+
+`resource` and `replica-number` are mutually exclusive parameters. The behavior of the operation is unspecified if both parameters are provided.
 
 #### Response
 
