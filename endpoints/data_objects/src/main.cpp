@@ -1152,6 +1152,22 @@ namespace
 						out = std::make_unique<io::odstream>(
 							*tp, lpath_iter->second, io::root_resource_name{iter->second}, openmode);
 					}
+					else if (const auto iter = _args.find("replica-number"); iter != std::end(_args)) {
+						int value = -1;
+						try {
+							value = std::stoi(iter->second);
+						}
+						catch (const std::exception& e) {
+							logging::error(
+								*_sess_ptr, "{}: Could not convert replica number [{}] to integer.", fn, iter->second);
+							res.result(http::status::bad_request);
+							res.prepare_payload();
+							return _sess_ptr->send(std::move(res));
+						}
+
+						out = std::make_unique<io::odstream>(
+							*tp, lpath_iter->second, io::replica_number{value}, openmode);
+					}
 					else {
 						out = std::make_unique<io::odstream>(*tp, lpath_iter->second, openmode);
 					}
@@ -3233,6 +3249,26 @@ namespace irods::http::endpoint_operation
 						std::string{lpath_iter->value()},
 						io::root_resource_name{std::string{iter->value()}},
 						openmode);
+				}
+				else if (const auto iter = headers.find("irods-api-request-replica-number"); iter != std::end(headers))
+				{
+					int value = -1;
+					try {
+						value = std::stoi(iter->value());
+					}
+					catch (const std::exception& e) {
+						logging::error(
+							*_sess_ptr,
+							"{}: Could not convert replica number [{}] to integer.",
+							__func__,
+							iter->value());
+						res.result(::http::status::bad_request);
+						res.prepare_payload();
+						return _sess_ptr->send(std::move(res));
+					}
+
+					out = std::make_unique<io::odstream>(
+						*tp, std::string{lpath_iter->value()}, io::replica_number{value}, openmode);
 				}
 				else {
 					out = std::make_unique<io::odstream>(*tp, std::string{lpath_iter->value()}, openmode);
