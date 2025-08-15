@@ -3110,6 +3110,235 @@ class test_data_objects_endpoint(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
 
+    def test_resizing_replicas(self):
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+        rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/data_object.txt'
+        resc_name = 'ufs_resizing_replicas'
+
+        try:
+            # Create a unixfilesystem resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'create',
+                'name': resc_name,
+                'type': 'unixfilesystem',
+                'host': self.server_hostname,
+                'vault-path': os.path.join('/tmp', f'{resc_name}_vault')
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Create a data object.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'touch',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Replicate the data object.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'replicate',
+                'lpath': data_object,
+                'dst-resource': resc_name
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Increase the size of replica 1.
+            data_size_1 = 512
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'truncate',
+                'lpath': data_object,
+                'replica-number': 1,
+                'size': data_size_1
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            coll_name = os.path.dirname(data_object)
+            data_name = os.path.basename(data_object)
+            r = requests.get(f'{self.url_base}/query', headers=rodsuser_headers, params={
+                'op': 'execute_genquery',
+                'query': f"select order_asc(DATA_REPL_NUM), DATA_SIZE where COLL_NAME = '{coll_name}' and DATA_NAME = '{data_name}'"
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['rows'][0][1], '0')
+            self.assertEqual(result['rows'][1][1], str(data_size_1))
+
+            # Increase the size of replica 0.
+            data_size_0 = 1024
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'truncate',
+                'lpath': data_object,
+                'replica-number': 0,
+                'size': data_size_0
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            coll_name = os.path.dirname(data_object)
+            data_name = os.path.basename(data_object)
+            r = requests.get(f'{self.url_base}/query', headers=rodsuser_headers, params={
+                'op': 'execute_genquery',
+                'query': f"select order_asc(DATA_REPL_NUM), DATA_SIZE where COLL_NAME = '{coll_name}' and DATA_NAME = '{data_name}'"
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['rows'][0][1], str(data_size_0))
+            self.assertEqual(result['rows'][1][1], str(data_size_1))
+
+            # Decrease the size of replica 1.
+            data_size_1 = 5
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'truncate',
+                'lpath': data_object,
+                'replica-number': 1,
+                'size': data_size_1
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            coll_name = os.path.dirname(data_object)
+            data_name = os.path.basename(data_object)
+            r = requests.get(f'{self.url_base}/query', headers=rodsuser_headers, params={
+                'op': 'execute_genquery',
+                'query': f"select order_asc(DATA_REPL_NUM), DATA_SIZE where COLL_NAME = '{coll_name}' and DATA_NAME = '{data_name}'"
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['rows'][0][1], str(data_size_0))
+            self.assertEqual(result['rows'][1][1], str(data_size_1))
+
+        finally:
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
+            # Remove resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'remove',
+                'name': resc_name
+            })
+            self.logger.debug(r.content)
+
+    def test_truncating_a_nonexistent_data_object_returns_an_error(self):
+        headers = {'Authorization': 'Bearer ' + self.rodsuser_bearer_token}
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/truncating_nonexistent_replica.txt'
+
+        r = requests.post(self.url_endpoint, headers=headers, data={
+            'op': 'truncate',
+            'lpath': data_object,
+            'size': 1024
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.OBJ_PATH_DOES_NOT_EXIST)
+
+    def test_truncating_a_replica_using_incompatible_parameters(self):
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/truncating_using_incompatible_params.txt'
+
+        try:
+            # Create a data object.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'touch',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show that the truncate operation returns an error when a replica number
+            # and [root] resource is specified.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'truncate',
+                'lpath': data_object,
+                'size': 100,
+                'replica-number': 0,
+                'resource': 'demoResc'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.SYS_INVALID_INPUT_PARAM)
+
+        finally:
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
+    def test_rodsadmin_can_invoke_truncate_on_other_users_data_objects_using_the_admin_flag(self):
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+        rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/truncating_using_admin_flag.txt'
+
+        try:
+            # Create a data object.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'touch',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show a rodsadmin can truncate data objects they do not have permissions on.
+            new_data_size = 100
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'truncate',
+                'lpath': data_object,
+                'size': new_data_size,
+                'replica-number': 0,
+                'admin': 1
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the data size has changed.
+            r = requests.get(self.url_endpoint, headers=rodsuser_headers, params={
+                'op': 'stat',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['size'], new_data_size)
+
+        finally:
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
 class test_information_endpoint(unittest.TestCase):
 
     @classmethod

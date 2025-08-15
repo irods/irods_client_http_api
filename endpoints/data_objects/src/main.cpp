@@ -26,6 +26,7 @@
 #include <irods/packStruct.h>
 #include <irods/phyPathReg.h>
 #include <irods/rcMisc.h>
+#include <irods/replica_truncate.h>
 #include <irods/rodsErrorTable.h>
 #include <irods/rodsKeyWdDef.h>
 #include <irods/rodsPackInstruct.h>
@@ -215,6 +216,7 @@ namespace
 	IRODS_HTTP_API_ENDPOINT_OPERATION_SIGNATURE(op_copy);
 	IRODS_HTTP_API_ENDPOINT_OPERATION_SIGNATURE(op_remove);
 	IRODS_HTTP_API_ENDPOINT_OPERATION_SIGNATURE(op_touch);
+	IRODS_HTTP_API_ENDPOINT_OPERATION_SIGNATURE(op_truncate);
 
 	IRODS_HTTP_API_ENDPOINT_OPERATION_SIGNATURE(op_calculate_checksum);
 	IRODS_HTTP_API_ENDPOINT_OPERATION_SIGNATURE(op_verify_checksum);
@@ -236,6 +238,7 @@ namespace
 
 	const std::unordered_map<std::string, irods::http::handler_type> handlers_for_post{
 		{"touch", op_touch},
+		{"truncate", op_truncate},
 		{"remove", op_remove},
 
 		{"write", op_write},
@@ -2304,6 +2307,99 @@ namespace
 			_sess_ptr->send(std::move(res));
 		});
 	} // op_touch
+
+	// NOLINTNEXTLINE(performance-unnecessary-value-param)
+	IRODS_HTTP_API_ENDPOINT_OPERATION_SIGNATURE(op_truncate)
+	{
+		auto result = irods::http::resolve_client_identity(_req);
+		if (result.response) {
+			return _sess_ptr->send(std::move(*result.response));
+		}
+
+		const auto client_info = result.client_info;
+
+		irods::http::globals::background_task(
+			[fn = __func__, client_info, _sess_ptr, _req = std::move(_req), _args = std::move(_args)] {
+				logging::info(*_sess_ptr, "{}: client_info.username = [{}]", fn, client_info.username);
+
+				http::response<http::string_body> res{http::status::ok, _req.version()};
+				res.set(http::field::server, irods::http::version::server_name);
+				res.set(http::field::content_type, "application/json");
+				res.keep_alive(_req.keep_alive());
+
+				try {
+					const auto lpath_iter = _args.find("lpath");
+					if (lpath_iter == std::end(_args)) {
+						logging::error(*_sess_ptr, "{}: Missing [lpath] parameter.", fn);
+						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					}
+
+					const auto size_iter = _args.find("size");
+					if (lpath_iter == std::end(_args)) {
+						logging::error(*_sess_ptr, "{}: Missing [size] parameter.", fn);
+						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					}
+
+					DataObjInp input{};
+					lpath_iter->second.copy(input.objPath, sizeof(DataObjInp::objPath) - 1);
+
+					try {
+						input.dataSize = std::stoll(size_iter->second);
+					}
+					catch (const std::exception& e) {
+						logging::error(
+							*_sess_ptr, "{}: Could not convert size [{}] into an integer.", fn, size_iter->second);
+						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
+					}
+
+					if (const auto iter = _args.find("resource"); iter != std::end(_args)) {
+						addKeyVal(&input.condInput, RESC_NAME_KW, iter->second.c_str());
+					}
+
+					if (const auto iter = _args.find("replica-number"); iter != std::end(_args)) {
+						addKeyVal(&input.condInput, REPL_NUM_KW, iter->second.c_str());
+					}
+
+					if (const auto iter = _args.find("admin"); iter != std::end(_args) && iter->second == "1") {
+						addKeyVal(&input.condInput, ADMIN_KW, "");
+					}
+
+					auto conn = irods::get_connection(client_info.username);
+
+					char* json_output{};
+					// NOLINTNEXTLINE(cppcoreguidelines-no-malloc, *-owning-memory)
+					const irods::at_scope_exit free_json_output{[&json_output] { std::free(json_output); }};
+
+					const auto ec = rc_replica_truncate(static_cast<RcComm*>(conn), &input, &json_output);
+
+					json response{{"irods_response", {{"status_code", ec}}}};
+					if (json_output) {
+						response["irods_response"]["additional_info"] = json::parse(json_output);
+					}
+
+					res.body() = response.dump();
+				}
+				catch (const irods::exception& e) {
+					logging::error(*_sess_ptr, "{}: {}", fn, e.client_display_what());
+					// clang-format off
+					res.body() = json{
+						{"irods_response", {
+							{"status_code", e.code()},
+							{"status_message", e.client_display_what()}
+						}}
+					}.dump();
+					// clang-format on
+				}
+				catch (const std::exception& e) {
+					logging::error(*_sess_ptr, "{}: {}", fn, e.what());
+					res.result(http::status::internal_server_error);
+				}
+
+				res.prepare_payload();
+
+				_sess_ptr->send(std::move(res));
+			});
+	} // op_truncate
 
 	IRODS_HTTP_API_ENDPOINT_OPERATION_SIGNATURE(op_calculate_checksum)
 	{

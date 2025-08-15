@@ -506,6 +506,44 @@ If an HTTP status code of 200 is returned, the body of the response will contain
 
 If there was an error, expect an HTTP status code in either the 4XX or 5XX range.
 
+### truncate
+
+Resizes an existing replica.
+
+#### Request
+
+HTTP Method: POST
+
+```bash
+curl http://localhost:<port>/irods-http-api/<version>/data-objects \
+    -H 'Authorization: Bearer <token>' \
+    --data-urlencode 'op=truncate' \
+    --data-urlencode 'lpath=<string>' \ # Absolute logical path to a data object.
+    --data-urlencode 'resource=<string>' \ # The resource holding an existing replica. Optional.
+    --data-urlencode 'replica-number=<integer>' \ # The replica to resize. Optional.
+    --data-urlencode 'admin=<integer>' # 0 or 1. Defaults to 0. Execute as a rodsadmin. Optional.
+```
+
+#### Response
+
+If an HTTP status code of 200 is returned, the body of the response will contain JSON. Its structure is shown below.
+
+```js
+{
+    "irods_response": {
+        "status_code": 0
+        "status_message": "string", // Optional
+        "additional_info": {
+            "resource_hierarchy": "string",
+            "replica_number": 0,
+            "message": "string"
+        }
+    }
+}
+```
+
+If there was an error, expect an HTTP status code in either the 4XX or 5XX range.
+
 ### remove
 
 Removes a data object or unregisters all replicas.
