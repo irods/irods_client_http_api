@@ -888,7 +888,7 @@ namespace
 					if (!in) {
 						logging::error(
 							*_sess_ptr, "{}: Could not open data object [{}] for read.", fn, lpath_iter->second);
-						res.result(http::status::internal_server_error);
+						res.result(http::status::bad_request);
 						res.prepare_payload();
 						return _sess_ptr->send(std::move(res));
 					}
@@ -962,7 +962,7 @@ namespace
 
 				if (!in) {
 					logging::error(*_sess_ptr, "{}: Could not open data object [{}] for read.", fn, lpath_iter->second);
-					res.result(http::status::internal_server_error);
+					res.result(http::status::bad_request);
 					res.prepare_payload();
 					return _sess_ptr->send(std::move(res));
 				}
