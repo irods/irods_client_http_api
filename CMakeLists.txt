@@ -162,6 +162,7 @@ target_link_objects(
   #irods_http_api_endpoint_config
   irods_http_api_endpoint_data_objects
   irods_http_api_endpoint_information
+  irods_http_api_endpoint_physical_quotas
   irods_http_api_endpoint_query
   irods_http_api_endpoint_resources
   irods_http_api_endpoint_rules

@@ -96,17 +96,18 @@ using tcp  = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 
 // IRODS_HTTP_API_BASE_URL is a macro defined by the CMakeLists.txt.
 const irods::http::request_handler_map_type req_handlers{
-	{IRODS_HTTP_API_BASE_URL "/authenticate", irods::http::handler::authentication},
-	{IRODS_HTTP_API_BASE_URL "/collections",  irods::http::handler::collections},
-	//{IRODS_HTTP_API_BASE_URL "/config",       irods::http::handler::configuration},
-	{IRODS_HTTP_API_BASE_URL "/data-objects", irods::http::handler::data_objects},
-	{IRODS_HTTP_API_BASE_URL "/info",         irods::http::handler::information},
-	{IRODS_HTTP_API_BASE_URL "/query",        irods::http::handler::query},
-	{IRODS_HTTP_API_BASE_URL "/resources",    irods::http::handler::resources},
-	{IRODS_HTTP_API_BASE_URL "/rules",        irods::http::handler::rules},
-	{IRODS_HTTP_API_BASE_URL "/tickets",      irods::http::handler::tickets},
-	{IRODS_HTTP_API_BASE_URL "/users-groups", irods::http::handler::users_groups},
-	{IRODS_HTTP_API_BASE_URL "/zones",        irods::http::handler::zones}
+	{IRODS_HTTP_API_BASE_URL "/authenticate",       irods::http::handler::authentication},
+	{IRODS_HTTP_API_BASE_URL "/collections",        irods::http::handler::collections},
+	//{IRODS_HTTP_API_BASE_URL "/config",           irods::http::handler::configuration},
+	{IRODS_HTTP_API_BASE_URL "/data-objects",       irods::http::handler::data_objects},
+	{IRODS_HTTP_API_BASE_URL "/info",               irods::http::handler::information},
+	{IRODS_HTTP_API_BASE_URL "/physical-quotas",    irods::http::handler::physical_quotas},
+	{IRODS_HTTP_API_BASE_URL "/query",              irods::http::handler::query},
+	{IRODS_HTTP_API_BASE_URL "/resources",          irods::http::handler::resources},
+	{IRODS_HTTP_API_BASE_URL "/rules",              irods::http::handler::rules},
+	{IRODS_HTTP_API_BASE_URL "/tickets",            irods::http::handler::tickets},
+	{IRODS_HTTP_API_BASE_URL "/users-groups",       irods::http::handler::users_groups},
+	{IRODS_HTTP_API_BASE_URL "/zones",              irods::http::handler::zones}
 };
 // clang-format on
 

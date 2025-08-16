@@ -29,7 +29,11 @@ test_config = {
 
     # Enable this configuration option if the HTTP API is compiled
     # against the iRODS 5.1.0 development library or later.
-    'dstream_exposes_irods_error_codes': False
+    'dstream_exposes_irods_error_codes': False,
+
+    # Requires that physical quotas be enabled on the iRODS server.
+    # See documentation for msiSetRescQuotaPolicy() to learn more.
+    'run_physical_quota_tests': False
 }
 
 schema = {
@@ -72,6 +76,12 @@ schema = {
         },
         'run_genquery2_tests': {
             'type': 'boolean'
+        },
+        'dstream_exposes_irods_error_codes': {
+            'type': 'boolean'
+        },
+        'run_physical_quota_tests': {
+            'type': 'boolean'
         }
     },
     'required': [
@@ -83,7 +93,9 @@ schema = {
         'rodsuser',
         'irods_zone',
         'irods_server_hostname',
-        'run_genquery2_tests'
+        'run_genquery2_tests',
+        'dstream_exposes_irods_error_codes',
+        'run_physical_quota_tests'
     ],
     'definitions': {
         'login': {
