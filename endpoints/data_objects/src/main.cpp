@@ -853,12 +853,42 @@ namespace
 					logging::trace(
 						*_sess_ptr, "{}: Opening stream for reading to data object [{}].", fn, lpath_iter->second);
 					auto tp = std::make_unique<io::client::native_transport>(dedicated_conn);
-					io::idstream in{*tp, lpath_iter->second};
+					io::idstream in;
+
+					if (auto iter = _args.find("resource"); iter != std::end(_args)) {
+						logging::debug(
+							*_sess_ptr,
+							"{}: Opening replica of [{}] on resource [{}].",
+							fn,
+							lpath_iter->second,
+							iter->second);
+						in.open(*tp, lpath_iter->second, io::root_resource_name{iter->second});
+					}
+					else if (iter = _args.find("replica-number"); iter != std::end(_args)) {
+						int value = -1;
+						try {
+							value = std::stoi(iter->second);
+						}
+						catch (const std::exception& e) {
+							logging::error(
+								*_sess_ptr, "{}: Could not convert replica number [{}] to integer.", fn, iter->second);
+							res.result(http::status::bad_request);
+							res.prepare_payload();
+							return _sess_ptr->send(std::move(res));
+						}
+
+						logging::debug(
+							*_sess_ptr, "{}: Opening replica [{}] of [{}].", fn, iter->second, lpath_iter->second);
+						in.open(*tp, lpath_iter->second, io::replica_number{value});
+					}
+					else {
+						in.open(*tp, lpath_iter->second);
+					}
 
 					if (!in) {
 						logging::error(
 							*_sess_ptr, "{}: Could not open data object [{}] for read.", fn, lpath_iter->second);
-						res.result(http::status::internal_server_error);
+						res.result(http::status::bad_request);
 						res.prepare_payload();
 						return _sess_ptr->send(std::move(res));
 					}
@@ -898,11 +928,41 @@ namespace
 					lpath_iter->second);
 
 				io::client::native_transport tp{conn};
-				io::idstream in{tp, lpath_iter->second};
+				io::idstream in;
+
+				if (auto iter = _args.find("resource"); iter != std::end(_args)) {
+					logging::debug(
+						*_sess_ptr,
+						"{}: Opening replica of [{}] on resource [{}].",
+						fn,
+						lpath_iter->second,
+						iter->second);
+					in.open(tp, lpath_iter->second, io::root_resource_name{iter->second});
+				}
+				else if (iter = _args.find("replica-number"); iter != std::end(_args)) {
+					int value = -1;
+					try {
+						value = std::stoi(iter->second);
+					}
+					catch (const std::exception& e) {
+						logging::error(
+							*_sess_ptr, "{}: Could not convert replica number [{}] to integer.", fn, iter->second);
+						res.result(http::status::bad_request);
+						res.prepare_payload();
+						return _sess_ptr->send(std::move(res));
+					}
+
+					logging::debug(
+						*_sess_ptr, "{}: Opening replica [{}] of [{}].", fn, iter->second, lpath_iter->second);
+					in.open(tp, lpath_iter->second, io::replica_number{value});
+				}
+				else {
+					in.open(tp, lpath_iter->second);
+				}
 
 				if (!in) {
 					logging::error(*_sess_ptr, "{}: Could not open data object [{}] for read.", fn, lpath_iter->second);
-					res.result(http::status::internal_server_error);
+					res.result(http::status::bad_request);
 					res.prepare_payload();
 					return _sess_ptr->send(std::move(res));
 				}
@@ -1091,6 +1151,22 @@ namespace
 					if (const auto iter = _args.find("resource"); iter != std::end(_args)) {
 						out = std::make_unique<io::odstream>(
 							*tp, lpath_iter->second, io::root_resource_name{iter->second}, openmode);
+					}
+                                        else if (const auto iter = _args.find("replica-number"); iter != std::end(_args)) {
+						int value = -1;
+						try {
+							value = std::stoi(iter->second);
+						}
+						catch (const std::exception& e) {
+							logging::error(
+								*_sess_ptr, "{}: Could not convert replica number [{}] to integer.", fn, iter->second);
+							res.result(http::status::bad_request);
+							res.prepare_payload();
+							return _sess_ptr->send(std::move(res));
+						}
+
+						out = std::make_unique<io::odstream>(
+							*tp, lpath_iter->second, io::replica_number{value}, openmode);
 					}
 					else {
 						out = std::make_unique<io::odstream>(*tp, lpath_iter->second, openmode);
@@ -1537,6 +1613,10 @@ namespace
 
 					if (const auto iter = _args.find("src-resource"); iter != std::end(_args)) {
 						addKeyVal(&input.condInput, RESC_NAME_KW, iter->second.c_str());
+					}
+
+					if (const auto iter = _args.find("src-replica-number"); iter != std::end(_args)) {
+						addKeyVal(&input.condInput, REPL_NUM_KW, iter->second.c_str());
 					}
 
 					if (const auto iter = _args.find("admin"); iter != std::end(_args) && iter->second == "1") {
@@ -3173,6 +3253,26 @@ namespace irods::http::endpoint_operation
 						std::string{lpath_iter->value()},
 						io::root_resource_name{std::string{iter->value()}},
 						openmode);
+				}
+				else if (const auto iter = headers.find("irods-api-request-replica-number"); iter != std::end(headers))
+				{
+					int value = -1;
+					try {
+						value = std::stoi(iter->value());
+					}
+					catch (const std::exception& e) {
+						logging::error(
+							*_sess_ptr,
+							"{}: Could not convert replica number [{}] to integer.",
+							__func__,
+							iter->value());
+						res.result(::http::status::bad_request);
+						res.prepare_payload();
+						return _sess_ptr->send(std::move(res));
+					}
+
+					out = std::make_unique<io::odstream>(
+						*tp, std::string{lpath_iter->value()}, io::replica_number{value}, openmode);
 				}
 				else {
 					out = std::make_unique<io::odstream>(*tp, std::string{lpath_iter->value()}, openmode);
