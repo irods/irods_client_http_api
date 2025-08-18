@@ -11,6 +11,59 @@ and this project **only** adheres to the following _(as defined at [Semantic Ver
 > - MINOR version when you add functionality in a backward compatible manner
 > - PATCH version when you make backward compatible bug fixes
 
+## [0.6.0] - 2025-08-22
+
+This release makes the HTTP API compatible with iRODS 5, improves compatibility with earlier versions of iRODS, expands support for targeting replicas for I/O operations, and improves write performance to data objects.
+
+It removes the OAuth client mode, requiring the HTTP API to be deployed as a protected resource. The OpenID Connect configuration now requires deployments to declare the method used for access token validation as well.
+
+Dockerfiles for EL8 and EL9 have been added to make building packages easier.
+
+### Changed
+
+- Use jsoncons C++ library for configuration validation (#261).
+- Make strict introspection endpoint `aud` check an opt-in (#375).
+- Make configuration of SSL/TLS certificates for OIDC optional (#443).
+- Make `parallel_write_init` operation return an iRODS error code on bad output stream (#445).
+- Make `write` operation return an iRODS error code on bad output stream (#445).
+- Require explicit selection of OIDC access token validation method in configuration file (#448).
+- Return HTTP status code of 400 when `read` operation fails to open input stream (#460).
+- Do not treat warnings as errors for Docker builders (#464).
+- Migrate to system CMake (irods/irods#8330).
+
+### Removed
+
+- Remove support for running as an OIDC client (#416).
+- Remove support for resource owner password credentials grant and authorization code grant (#416).
+- Remove non-standard behavior for symmetrically signed JWTs (#419).
+
+### Fixed
+
+- Fix user mapping plugin paths in README (#377).
+- Fix linker error for Ubuntu 20.04 (#384).
+- Fix `KeyValPair` memory leak (#389).
+- Fix lack of `return` keyword in `set_log_level()` (#391).
+- Fix segfault on multiple calls to `parallel_write_init` operation (#402).
+- Terminate outbound HTTP connections to OIDC Provider sooner (#412).
+- Fix compatibility issues for `modify_replica` operation (#420).
+- Fix compatibility issues for `create_group` operation (#420).
+- Close output streams on invalid offset values (#446).
+
+### Added
+
+- Add support for replica number parameter to `read`, `write`, and `replicate` operations (#128).
+- Improve write performance to data objects (#208).
+- Implement `truncate` operation for /data-objects endpoint (#271).
+- Document SSL/TLS termination assumptions (#386).
+- Add support for Undefined Behavior Sanitizer (#390).
+- Add support to `parallel_write_init` for targeting a specific root resource (#399).
+- Add Dockerfiles for building EL8 and EL9 packages (#406).
+- Make server compatible with iRODS 5 (#410, #411).
+- Implement custom `procApiRequest` for forward/backward compatibility (#420).
+- Allow user claim plugin to modify claim using regular expression (#421).
+- Add network diagrams for common deployment patterns (#429).
+- Implement support for modifying the access time of a replica (iRODS 5 only) (#431).
+
 ## [0.5.0] - 2024-11-13
 
 This release includes a user-mapping plugin system that enables dynamic user-mapping between OpenID Connect users and iRODS users. It also includes improved security through token validation.
