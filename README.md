@@ -71,6 +71,9 @@ API documentation can be found in [API.md](./API.md).
 
 - iRODS development package _(4.3.2 or later)_
 - iRODS externals package for boost
+- iRODS externals package for fmt
+- iRODS externals package for jsoncons
+- iRODS externals package for jwt-cpp
 - iRODS externals package for nlohmann-json
 - iRODS externals package for spdlog 
 - Curl development package
