@@ -67,6 +67,17 @@ $ curl -s http://localhost:9000/irods-http-api/<version>/collections \
 
 API documentation can be found in [API.md](./API.md).
 
+## iRODS Server Compatibility
+
+> [!IMPORTANT]
+> The HTTP API has not reached 1.0 status yet. It is not considered stable and may continue to change. While the current design has held up well, users need to be prepared to address breaking changes as needed. The **Changed** and **Removed** sections of the release notes can assist you in identifying such changes.
+
+The HTTP API is compatible with iRODS 4.3.2 and later.
+
+It is a passthrough service. Support for any particular operation will depend on whether the connected iRODS server implements it.
+
+The behavior of operations can vary based on the version of the connected iRODS server. Examples of this include, but aren't limited to, changes in error codes and GenQuery2 behavior. Please test your applications before deploying to production.
+
 ## Build Dependencies
 
 - iRODS development package _(4.3.2 or later)_
