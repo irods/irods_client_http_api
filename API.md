@@ -927,7 +927,7 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     [-F,--data-urlencode] 'op=write' \
     [-F,--data-urlencode] 'lpath=<string>' \ # Absolute logical path to a data object.
     [-F,--data-urlencode] 'resource=<string>' \ # The root resource holding the replica to write to. Optional.
-    [-F,--data-urlencode] 'replica-number=<integer>' \ # The replica number of the replica to write to. Cannot be negative if specified. Optional.
+    [-F,--data-urlencode] 'replica-number=<integer>' \ # The replica number of the replica to write to. Should not be negative if specified. Optional.
     [-F,--data-urlencode] 'offset=<integer>' \ # Number of bytes to skip. Defaults to 0. Optional.
     [-F,--data-urlencode] 'truncate=<integer>' \ # 0 or 1. Defaults to 1. Truncates the data object before writing. Optional.
     [-F,--data-urlencode] 'append=<integer>' \ # 0 or 1. Defaults to 0. Appends the bytes to the data object. Optional.
@@ -952,7 +952,7 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     -H 'irods-api-request-op=write' \
     -H 'irods-api-request-lpath=<string>' \ # Absolute logical path to a data object.
     -H 'irods-api-request-resource=<string>' \ # The root resource holding the replica to write to. Optional.
-    -H 'irods-api-request-replica-number=<integer>' \ # The replica number of the replica to write to. Cannot be negative if specified. Optional.
+    -H 'irods-api-request-replica-number=<integer>' \ # The replica number of the replica to write to. Should not be negative if specified. Optional.
     -H 'irods-api-request-offset=<integer>' \ # Number of bytes to skip. Defaults to 0. Optional.
     -H 'irods-api-request-truncate=<integer>' \ # 0 or 1. Defaults to 1. Truncates the data object before writing. Optional.
     -H 'irods-api-request-append=<integer>' \ # 0 or 1. Defaults to 0. Appends the bytes to the data object. Optional.
