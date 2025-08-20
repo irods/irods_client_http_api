@@ -89,6 +89,7 @@ namespace
 			const std::string& _client_username,
 			const std::string& _path,
 			const std::optional<std::string>& _resource,
+			const std::optional<int>& _replica_number,
 			const std::ios_base::openmode _openmode,
 			const std::optional<std::string>& _ticket,
 			const irods::experimental::io::odstream* _base = nullptr)
@@ -137,6 +138,9 @@ namespace
 			}
 			else if (_resource) {
 				stream_.open(*tp_, _path, irods::experimental::io::root_resource_name{*_resource}, _openmode);
+			}
+			else if (_replica_number) {
+				stream_.open(*tp_, _path, irods::experimental::io::replica_number{*_replica_number}, _openmode);
 			}
 			else {
 				stream_.open(*tp_, _path, _openmode);
@@ -1374,13 +1378,26 @@ namespace
 					}
 
 					std::optional<std::string> resource;
+					std::optional<int> replica_number;
 					if (const auto iter = _args.find("resource"); iter != std::end(_args)) {
 						resource = iter->second;
+					}
+					else if (const auto iter = _args.find("replica-number"); iter != std::end(_args)) {
+						try {
+							replica_number = std::stoi(iter->second);
+						}
+						catch (const std::exception& e) {
+							logging::error(
+								*_sess_ptr, "{}: Could not convert replica number [{}] to integer.", fn, iter->second);
+							res.result(http::status::bad_request);
+							res.prepare_payload();
+							return _sess_ptr->send(std::move(res));
+						}
 					}
 
 					// Open the primary stream.
 					pw_streams.emplace_back(std::make_shared<parallel_write_stream>(
-						client_info.username, lpath_iter->second, resource, openmode, ticket));
+						client_info.username, lpath_iter->second, resource, replica_number, openmode, ticket));
 
 					auto& first_stream = pw_streams.front()->stream();
 					logging::debug(
@@ -1397,6 +1414,7 @@ namespace
 						pw_streams.emplace_back(std::make_shared<parallel_write_stream>(
 							client_info.username,
 							lpath_iter->second,
+							std::nullopt,
 							std::nullopt,
 							openmode,
 							ticket,

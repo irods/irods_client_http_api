@@ -2412,6 +2412,212 @@ class test_data_objects_endpoint(unittest.TestCase):
             })
             self.logger.debug(r.content)
 
+    def test_parallel_write_init_operation_supports_targeting_replica_via_replica_number(self):
+        rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+
+        ufs_resc = 'ufs_parallel_write_init_resc'
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/parallel_write_init_supports_targeting_replica.txt'
+
+        # Generate 96kb string.
+        # This is the data we'll upload to the HTTP API.
+        data96kb = ('A' * 32768) + ('B' * 32768) + ('C' * 32768)
+
+        # Indicates whether the parallel_write_shutdown operation needs to be called.
+        # This is used for clean up when errors occur.
+        invoke_parallel_write_shutdown = False
+
+        try:
+            # Create a unixfilesystem resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'create',
+                'name': ufs_resc,
+                'type': 'unixfilesystem',
+                'host': self.server_hostname,
+                'vault-path': os.path.join('/tmp', f'{ufs_resc}_vault')
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Create a data object on demoResc.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'write',
+                'lpath': data_object,
+                'resource': 'demoResc',
+                'bytes': 'hello, this message was written via the iRODS HTTP API!'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Replicate the replica on demoResc to the other resource.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'replicate',
+                'lpath': data_object,
+                'dst-resource': ufs_resc
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Tell the server we're about to do a parallel write, overwriting replica 1.
+            stream_count = 3
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'parallel_write_init',
+                'lpath': data_object,
+                'replica-number': 1,
+                'stream-count': stream_count
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            parallel_write_handle = result['parallel_write_handle']
+
+            # Make sure the parallel_write_shutdown operation is invoked now that we
+            # have a parallel-write handle.
+            invoke_parallel_write_shutdown = True
+
+            # Write to the data object using the parallel write handle.
+            futures = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=stream_count) as executor:
+                chunk_size = len(data96kb) // stream_count
+                self.logger.debug(f'chunk size = [{chunk_size}]')
+                for i in range(stream_count):
+                    chunk_start = i * chunk_size
+                    futures.append(executor.submit(self.execute_write_using_header_based_form, **{
+                        'bearer_token': self.rodsuser_bearer_token,
+                        'fields': {
+                            'op': 'write',
+                            'parallel-write-handle': parallel_write_handle,
+                            'offset': chunk_start,
+                            'stream-index': i
+                        },
+                        'bytes': data96kb[chunk_start : chunk_start + chunk_size]
+                    }))
+
+                for f in concurrent.futures.as_completed(futures):
+                    result = f.result()
+                    self.logger.debug(result)
+                    self.assertEqual(result['irods_response']['status_code'], 0)
+
+            # End the parallel write.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'parallel_write_shutdown',
+                'parallel-write-handle': parallel_write_handle
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # The data object was closed successfully.
+            # Do not invoke the parallel_write_shutdown operation in the finally block.
+            invoke_parallel_write_shutdown = False
+
+            # Show the data was written to the iRODS server safely.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'calculate_checksum',
+                'lpath': data_object,
+                'replica-number': 1
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['checksum'], 'sha2:YS0DmQW7u51PaFVYl/iTsHFOctKtP1MZZ8JLnBwCLMI=')
+            replica_1_checksum = result['checksum']
+
+            # Show that each replica has a different checksum.
+            # This helps strengthen the test by proving the replication and parallel
+            # write did what was expected.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'calculate_checksum',
+                'lpath': data_object,
+                'replica-number': 0
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['checksum'], 'sha2:1SgRcbKcy3+4fjwMvf7xQNG5OZmiYzBVbNuMIgiWbBE=')
+            self.assertNotEqual(result['checksum'], replica_1_checksum)
+
+        finally:
+            # End the parallel write in case something failed.
+            # This avoids leaking of parallel-write resources in the HTTP API server.
+            if invoke_parallel_write_shutdown:
+                r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                    'op': 'parallel_write_shutdown',
+                    'parallel-write-handle': parallel_write_handle
+                })
+                self.logger.debug(r.content)
+
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
+            # Remove the unixfilesystem resource.
+            r = requests.post(f'{self.url_base}/resources', headers=rodsadmin_headers, data={
+                'op': 'remove',
+                'name': ufs_resc
+            })
+            self.logger.debug(r.content)
+
+    def test_parallel_write_init_operation_returns_an_error_on_invalid_replica_number(self):
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/parallel_write_init_invalid_replica_number.txt'
+
+        try:
+            # Create a data object.
+            # This keeps the "parallel_write_init" operation from experiencing an error
+            # due to a nonexistent data object. This is highly important for the test's
+            # correctness.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'touch',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            with self.subTest('Invoking parallel_write_init using non-integer string as replica number'):
+                r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                    'op': 'parallel_write_init',
+                    'lpath': data_object,
+                    'replica-number': 'invalid',
+                    'stream-count': 3
+                })
+                self.logger.debug(r.content)
+                self.assertEqual(r.status_code, 400)
+
+            with self.subTest('Invoking parallel_write_init using incorrect replica number'):
+                r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                    'op': 'parallel_write_init',
+                    'lpath': data_object,
+                    'replica-number': 100,
+                    'stream-count': 3
+                })
+                self.logger.debug(r.content)
+                self.assertEqual(r.status_code, 200)
+                result = r.json()
+                self.assertEqual(result['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+
+        finally:
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
     def test_write_operation_returns_http_status_code_400_on_non_integer_offset_value(self):
         headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
         data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/non_integer_value'

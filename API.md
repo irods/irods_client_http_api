@@ -1008,11 +1008,14 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     --data-urlencode 'op=parallel_write_init' \
     --data-urlencode 'lpath=<string>' \ # Absolute logical path to a data object.
     --data-urlencode 'resource=<string>' \ # The root resource to write to. Optional.
+    --data-urlencode 'replica-number=<integer>' \ # The replica number of the replica to write to. Should not be negative if specified. Optional.
     --data-urlencode 'truncate=<integer>' \ # 0 or 1. Defaults to 1. Truncates the data object before writing. Optional.
     --data-urlencode 'append=<integer>' \ # 0 or 1. Defaults to 0. Appends the bytes to the data object. Optional.
     --data-urlencode 'ticket=<string>' \ # The ticket to enable for all streams. Optional.
     --data-urlencode 'stream-count=<integer>' # Number of streams to open.
 ```
+
+`resource` and `replica-number` are mutually exclusive parameters. The behavior of the operation is unspecified if both parameters are provided.
 
 #### Response
 
@@ -1025,6 +1028,8 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     "parallel_write_handle": "string" // Available only if the operation was successful.
 }
 ```
+
+If there was an error, expect an HTTP status code in either the 4XX or 5XX range.
 
 If the data object cannot be opened, the HTTP API will return an iRODS error code of -175000 (`INVALID_HANDLE`). This error code indicates that the data object may be locked.
 
