@@ -2159,7 +2159,7 @@ class test_data_objects_endpoint(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.NOT_A_DATA_OBJECT)
 
-    def test_parallel_write_init_operation_supports_targeting_specific_resource(self):
+    def test_parallel_write_init_operation_supports_targeting_specific_root_resource(self):
         rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
         rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
 
