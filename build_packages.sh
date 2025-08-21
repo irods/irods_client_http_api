@@ -5,7 +5,7 @@ set -x
 # Compile the HTTP API project
 mkdir /_build_http_api
 cd /_build_http_api
-cmake -GNinja /http_api_source
+cmake -GNinja -DIRODS_BUILD_WITH_WERROR=NO /http_api_source
 ninja package
 
 # Copy any generated deb packages
