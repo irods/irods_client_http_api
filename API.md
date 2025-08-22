@@ -1351,6 +1351,9 @@ curl http://localhost:<port>/irods-http-api/<version>/query \
 
 `count` will be clamped to the range [1, _N_] where _N_ represents the max number of rows that can be returned by any query. The max number of rows is defined by the administrator of the iRODS HTTP API and can be obtained by sending an HTTP GET request to the /info endpoint. See [Information Operations](#information-operations) for more details.
 
+> [!NOTE]
+> HTTP API servers compiled against iRODS 4.3 development libraries DO NOT support iRODS 5-only GenQuery columns (e.g. `DATA_ACCESS_TIME`). Setting the `parser` parameter to `genquery2` will allow you to use such columns when connected to an iRODS 5 server.
+
 #### Response
 
 If an HTTP status code of 200 is returned, the body of the response will contain JSON. Its structure is shown below.
