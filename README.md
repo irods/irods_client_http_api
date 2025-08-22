@@ -247,8 +247,9 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
 
             // Defines options for the "Basic" authentication scheme.
             "basic": {
-                // The amount of time before a user's authentication
-                // token expires.
+                // The amount of time before a user's authentication token expires.
+                // The lifetime of a token will be extended by this amount on each
+                // use as long as the token has not expired.
                 "timeout_in_seconds": 3600
             },
 

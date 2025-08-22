@@ -4,7 +4,6 @@
 #include "irods/private/http_api/globals.hpp"
 #include "irods/private/http_api/log.hpp"
 #include "irods/private/http_api/process_stash.hpp"
-#include "irods/private/http_api/openid.hpp"
 #include "irods/private/http_api/session.hpp"
 #include "irods/private/http_api/transport.hpp"
 #include "irods/private/http_api/version.hpp"
