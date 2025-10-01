@@ -4162,7 +4162,7 @@ class test_quotas_endpoint(unittest.TestCase):
         rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
         resource = 'demoResc'
 
-        # Set a quota for the public group. This applies to ALL resources.
+        # Set a quota for the public group. This only applies to the specified resource.
         r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
             'op': 'set_group_quota',
             'group': 'public',

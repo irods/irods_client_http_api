@@ -231,7 +231,7 @@ namespace
 					input.arg4 = quota_iter->second.c_str();
 
 					// Apply the quota as a resource quota if the user set the resource parameter.
-				    // Otherwise, apply it as a global quota across all resources.
+					// Otherwise, apply it as a global quota across all resources.
 					const auto resource_iter = _args.find("resource");
 					if (resource_iter != std::end(_args)) {
 						input.arg3 = resource_iter->second.c_str();
@@ -248,12 +248,12 @@ namespace
 				catch (const irods::exception& e) {
 					logging::error(*_sess_ptr, "{}: {}", fn, e.client_display_what());
 					// clang-format off
-				res.body() = json{
-					{"irods_response", {
-						{"status_code", e.code()},
-						{"status_message", e.client_display_what()}
-					}}
-				}.dump();
+					res.body() = json{
+						{"irods_response", {
+							{"status_code", e.code()},
+							{"status_message", e.client_display_what()}
+						}}
+					}.dump();
 					// clang-format on
 				}
 				catch (const std::exception& e) {

@@ -1532,6 +1532,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Sets the quota for a group, optionally scoped to a single resource.
 
+This operation requires rodsadmin level privileges.
+
 #### Request
 
 HTTP Method: POST
@@ -1568,6 +1570,8 @@ Calculate or update quota information based on the state of the catalog.
 
 > [!IMPORTANT]
 > iRODS does not automatically update quota information as data changes. This operation is provided to give administrators control over how frequently totals are calculated.
+
+This operation requires rodsadmin level privileges.
 
 #### Request
 
