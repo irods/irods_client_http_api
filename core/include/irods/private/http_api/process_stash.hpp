@@ -45,6 +45,16 @@ namespace irods::http::process_stash
 	/// \since 4.2.12
 	auto find(const std::string& _key) -> std::optional<boost::any>;
 
+	/// Atomically executes operation on value mapped to a specific key.
+	///
+	/// This function is thread-safe.
+	///
+	/// \param[in] _key     The string which maps to the value of interest.
+	/// \param[in] _visitor The operation to execute on the value mapped to the key.
+	///
+	/// \returns A boolean indicating whether the operation was executed.
+	auto visit(const std::string& _key, const std::function<void(boost::any&)>& _visitor) -> bool;
+
 	/// Removes a value from the process stash.
 	///
 	/// This function is thread-safe.

@@ -339,81 +339,95 @@ namespace irods::http
 		boost::trim(bearer_token);
 		logging::debug("{}: Bearer token: [{}]", __func__, bearer_token);
 
+		const auto& config = irods::http::globals::configuration();
+
+		bool token_expired = false;
+		authenticated_client_info client_info_copy;
+
 		// Verify the bearer token is known to the server. If not, return an error.
-		auto mapped_value{irods::http::process_stash::find(bearer_token)};
-		if (!mapped_value.has_value()) {
-			const auto& config = irods::http::globals::configuration();
+		const auto found_token = irods::http::process_stash::visit(bearer_token, [&](boost::any& _v) {
+			auto& client_info = boost::any_cast<authenticated_client_info&>(_v);
+			const auto now = std::chrono::steady_clock::now();
 
-			// It's possible that the admin didn't include the OIDC configuration stanza.
-			// This use-case is allowed, therefore we check for the OIDC configuration before
-			// attempting to access it. Without this logic, the server would crash.
-			static const auto oidc_conf_exists{
-				config.contains(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"})};
-			if (oidc_conf_exists) {
-				nlohmann::json json_res;
-				const auto& validation_method{irods::http::globals::oidc_configuration()
-				                                  .at("access_token_validation_method")
-				                                  .get_ref<const std::string&>()};
+			if (now >= client_info.expires_at) {
+				token_expired = true;
+				return;
+			}
 
-				// Try parsing token as JWT Access Token
-				if (validation_method == "local_validation") {
-					try {
-						auto token{jwt::decode<jwt::traits::nlohmann_json>(bearer_token)};
-						auto possible_json_res{openid::validate_using_local_validation(token)};
+			// Refresh the lifetime of the bearer token.
+			static const auto token_lifetime =
+				config.at(nlohmann::json::json_pointer{"/http_server/authentication/basic/timeout_in_seconds"})
+					.get<int>();
+			client_info.expires_at = now + std::chrono::seconds{token_lifetime};
 
-						if (possible_json_res) {
-							json_res = *possible_json_res;
-						}
-					}
-					// Parsing of the token failed, this is not a JWT access token
-					catch (const std::exception& e) {
-						logging::debug("{}: {}", __func__, e.what());
-					}
-				}
+			client_info_copy = client_info;
+		});
 
-				// Use introspection endpoint if it exists
-				static const auto introspection_endpoint_exists{
-					irods::http::globals::oidc_endpoint_configuration().contains("introspection_endpoint")};
-				if (introspection_endpoint_exists && validation_method == "introspection") {
-					auto possible_json_res{openid::validate_using_introspection_endpoint(bearer_token)};
+		if (found_token) {
+			if (token_expired) {
+				logging::info("{}: Session for bearer token [{}] has expired.", __func__, bearer_token);
+				return {.response = fail(status_type::unauthorized)};
+			}
+
+			logging::trace("{}: Client is authenticated.", __func__);
+			return {.client_info = std::move(client_info_copy)};
+		}
+
+		// It's possible that the admin didn't include the OIDC configuration stanza.
+		// This use-case is allowed, therefore we check for the OIDC configuration before
+		// attempting to access it. Without this logic, the server would crash.
+		static const auto oidc_conf_exists{
+			config.contains(nlohmann::json::json_pointer{"/http_server/authentication/openid_connect"})};
+		if (oidc_conf_exists) {
+			nlohmann::json json_res;
+			const auto& validation_method{irods::http::globals::oidc_configuration()
+			                                  .at("access_token_validation_method")
+			                                  .get_ref<const std::string&>()};
+
+			// Try parsing token as JWT Access Token
+			if (validation_method == "local_validation") {
+				try {
+					auto token{jwt::decode<jwt::traits::nlohmann_json>(bearer_token)};
+					auto possible_json_res{openid::validate_using_local_validation(token)};
+
 					if (possible_json_res) {
 						json_res = *possible_json_res;
 					}
 				}
-
-				if (json_res.empty()) {
-					logging::error("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
-					return {.response = fail(status_type::unauthorized)};
+				// Parsing of the token failed, this is not a JWT access token
+				catch (const std::exception& e) {
+					logging::debug("{}: {}", __func__, e.what());
 				}
+			}
 
-				// Do mapping of user to irods user
-				auto user{map_json_to_user(json_res)};
-				if (user) {
-					return {.client_info = {.username = *std::move(user)}};
+			// Use introspection endpoint if it exists
+			static const auto introspection_endpoint_exists{
+				irods::http::globals::oidc_endpoint_configuration().contains("introspection_endpoint")};
+			if (introspection_endpoint_exists && validation_method == "introspection") {
+				auto possible_json_res{openid::validate_using_introspection_endpoint(bearer_token)};
+				if (possible_json_res) {
+					json_res = *possible_json_res;
 				}
+			}
 
-				logging::warn("{}: Could not find a matching user.", __func__);
+			if (json_res.empty()) {
+				logging::info("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
 				return {.response = fail(status_type::unauthorized)};
 			}
 
-			logging::debug("{}: No 'openid_connect' stanza found in server configuration.", __func__);
-			logging::error("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
+			// Do mapping of user to irods user
+			auto user{map_json_to_user(json_res)};
+			if (user) {
+				return {.client_info = {.username = *std::move(user)}};
+			}
+
+			logging::warn("{}: Could not find a matching user.", __func__);
 			return {.response = fail(status_type::unauthorized)};
 		}
 
-		auto* client_info{boost::any_cast<authenticated_client_info>(&*mapped_value)};
-		if (client_info == nullptr) {
-			logging::error("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
-			return {.response = fail(status_type::unauthorized)};
-		}
-
-		if (std::chrono::steady_clock::now() >= client_info->expires_at) {
-			logging::error("{}: Session for bearer token [{}] has expired.", __func__, bearer_token);
-			return {.response = fail(status_type::unauthorized)};
-		}
-
-		logging::trace("{}: Client is authenticated.", __func__);
-		return {.client_info = std::move(*client_info)};
+		logging::debug("{}: No [openid_connect] stanza found in server configuration.", __func__);
+		logging::info("{}: Could not find bearer token matching [{}].", __func__, bearer_token);
+		return {.response = fail(status_type::unauthorized)};
 	} // resolve_client_identity
 
 	auto execute_operation(
