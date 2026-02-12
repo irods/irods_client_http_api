@@ -4136,6 +4136,287 @@ class test_query_endpoint(unittest.TestCase):
     def test_server_reports_error_when_op_is_not_supported(self):
         do_test_server_reports_error_when_op_is_not_supported(self)
 
+class test_quotas_endpoint(unittest.TestCase):
+    # TODO(irods/irods#8624): Update this comment once iRODS moves configuration of
+    # quotas into the catalog.
+    #
+    # This test suite requires the iRODS server to be configured with quota monitoring
+    # enabled. This is accomplished by setting msiSetRescQuotaPolicy("on") in core.re.
+
+    @classmethod
+    def setUpClass(cls):
+        setup_class(cls, {'endpoint_name': 'quotas'})
+
+    @classmethod
+    def tearDownClass(cls):
+        tear_down_class(cls)
+
+    def setUp(self):
+        self.assertFalse(self._class_init_error, 'Class initialization failed. Cannot continue.')
+
+    def test_setting_a_group_quota_for_a_specific_resource(self):
+        if not config.test_config.get('run_quota_tests', False):
+            self.skipTest('Quota tests not enabled. Check [run_quota_tests] in test configuration file.')
+
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+        rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
+        resource = 'demoResc'
+
+        # Set a quota for the public group. This only applies to the specified resource.
+        r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+            'op': 'set_group_quota',
+            'group': 'public',
+            'resource': resource,
+            'quota': 10
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+        # Show that the quota is active by exceeding the quota.
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/quotas_for_one_resource.txt'
+        try:
+            # Recalculate the quotas.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'recalculate'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the quotas.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat',
+                'group': 'public'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['resource_quotas'][0]['limit'], 10)
+            self.assertEqual(result['resource_quotas'][0]['over'], -10)
+
+            # Create a data object which does not violate the quota limit.
+            r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                'op': 'write',
+                'lpath': data_object,
+                'resource': resource,
+                'bytes': 'ok'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Recalculate the quotas.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'recalculate'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the quotas.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat',
+                'group': 'public'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['resource_quotas'][0]['limit'], 10)
+            self.assertEqual(result['resource_quotas'][0]['over'], -8)
+
+            # Overwrite the data object. This puts the quota in violation. Any attempts to
+            # write to the data object will result in an error.
+            r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                'op': 'write',
+                'lpath': data_object,
+                'resource': resource,
+                'bytes': 'This puts the quota in violation.'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Recalculate the quotas.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'recalculate'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the data object cannot be written to even if we're truncating it.
+            r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                'op': 'write',
+                'lpath': data_object,
+                'resource': 'demoResc',
+                'bytes': 'nope'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+
+        finally:
+            # Remove the data object.
+            r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
+            # Recalculate the quotas.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'recalculate'
+            })
+            self.logger.debug(r.content)
+
+            # Show the quotas.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat',
+                'group': 'public'
+            })
+            self.logger.debug(r.content)
+
+            # Disable the quota.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'set_group_quota',
+                'group': 'public',
+                'resource': resource,
+                'quota': 0 
+            })
+            self.logger.debug(r.content)
+
+    def test_setting_a_group_quota_for_all_resources(self):
+        if not config.test_config.get('run_quota_tests', False):
+            self.skipTest('Quota tests not enabled. Check [run_quota_tests] in test configuration file.')
+
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+        rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
+
+        # Set a quota for the public group. This applies to ALL resources.
+        r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+            'op': 'set_group_quota',
+            'group': 'public',
+            'quota': 10 
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+        # Show that the quota is active by exceeding the quota.
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/quotas_for_all.txt'
+        try:
+            # Recalculate the quotas.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'recalculate'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the quotas.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['global_quotas'][0]['limit'], 10)
+            self.assertEqual(result['global_quotas'][0]['over'], -10)
+
+            # Create a data object which does not violate the quota limit.
+            r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                'op': 'write',
+                'lpath': data_object,
+                'bytes': 'ok'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Recalculate the quotas.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'recalculate'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the quotas.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['global_quotas'][0]['limit'], 10)
+            self.assertEqual(result['global_quotas'][0]['over'], -8)
+
+            # Overwrite the data object. This puts the quota in violation. Any attempts to
+            # write to the data object will result in an error.
+            r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                'op': 'write',
+                'lpath': data_object,
+                'bytes': 'This puts the quota in violation.'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Recalculate the quotas.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'recalculate'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the data object cannot be written to even if we're truncating it.
+            r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                'op': 'write',
+                'lpath': data_object,
+                'bytes': 'nope'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+
+        finally:
+            # Remove the data object.
+            r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
+            # Recalculate the quotas.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'recalculate'
+            })
+            self.logger.debug(r.content)
+
+            # Show the quotas.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat'
+            })
+            self.logger.debug(r.content)
+
+            # Disable the quota.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'set_group_quota',
+                'group': 'public',
+                'quota': 0 
+            })
+            self.logger.debug(r.content)
+
 class test_resources_endpoint(unittest.TestCase):
 
     @classmethod

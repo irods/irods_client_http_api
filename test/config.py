@@ -25,7 +25,10 @@ test_config = {
     'irods_zone': 'tempZone',
     'irods_server_hostname': 'localhost',
 
-    'run_genquery2_tests': True
+    'run_genquery2_tests': True,
+
+    # TODO(#395): Set to True when this project includes an automated testing environment.
+    'run_quota_tests': False
 }
 
 schema = {

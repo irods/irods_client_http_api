@@ -1472,6 +1472,132 @@ If an HTTP status code of 200 is returned, the body of the response will contain
 }
 ```
 
+## Quota Operations
+
+### stat
+
+Returns global and resource quota information for one or more groups.
+
+#### Request
+
+HTTP Method: GET
+
+```bash
+curl http://localhost:<port>/irods-http-api/<version>/quotas \
+    -H 'Authorization: Bearer <token>' \
+    --data-urlencode 'op=stat' \
+    --data-urlencode 'group=<string>' \ # The group on which to report. Optional.
+    -G
+```
+
+If a target group is not provided via the `group` parameter, the HTTP API will return quota information for all groups across the zone.
+
+#### Response
+
+If an HTTP status code of 200 is returned, the body of the response will contain JSON. Its structure is shown below.
+
+```js
+{
+    "irods_response": {
+        "status_code": 0
+        "status_message": "string" // Optional
+    },
+    "global_quotas": [
+        {
+            "group": "string",
+            "limit": 0,
+            "over": 0,
+            "modified_at": "string"
+        },
+
+        // Additional entries ...
+    ],
+    "resource_quotas": [
+        {
+            "group": "string",
+            "resource": "string",
+            "limit": 0,
+            "over": 0,
+            "modified_at": "string"
+        },
+
+        // Additional entries ...
+    ]
+}
+```
+
+If there was an error, expect an HTTP status code in either the 4XX or 5XX range.
+
+### set_group_quota
+
+Sets the quota for a group, optionally scoped to a single resource.
+
+This operation requires rodsadmin level privileges.
+
+#### Request
+
+HTTP Method: POST
+
+```bash
+curl http://localhost:<port>/irods-http-api/<version>/quotas \
+    -H 'Authorization: Bearer <token>' \
+    --data-urlencode 'op=set_group_quota' \
+    --data-urlencode 'group=<string>' \ # The group to which the new quota applies.
+    --data-urlencode 'resource=<string>' \ # The resource to which the new quota applies. Optional.
+    --data-urlencode 'quota=<integer>' # The number of bytes which will serve as the quota limit.
+```
+
+If a target resource is not provided via the `resource` parameter, the quota will be treated as a global quota. Writing data to one or more resources will count towards the group quota.
+
+#### Response
+
+If an HTTP status code of 200 is returned, the body of the response will contain JSON. Its structure is shown below.
+
+```js
+{
+    "irods_response": {
+        "status_code": 0
+        "status_message": "string" // Optional
+    }
+}
+```
+
+If there was an error, expect an HTTP status code in either the 4XX or 5XX range.
+
+### recalculate
+
+Calculate or update quota information based on the state of the catalog.
+
+> [!IMPORTANT]
+> iRODS does not automatically update quota information as data changes. This operation is provided to give administrators control over how frequently totals are calculated.
+
+This operation requires rodsadmin level privileges.
+
+#### Request
+
+HTTP Method: POST
+
+```bash
+curl http://localhost:<port>/irods-http-api/<version>/quotas \
+    -H 'Authorization: Bearer <token>' \
+    --data-urlencode 'op=recalculate'
+```
+
+#### Response
+
+If an HTTP status code of 200 is returned, the body of the response will contain JSON. Its structure is shown below.
+
+```js
+{
+    "irods_response": {
+        "status_code": 0
+        "status_message": "string" // Optional
+    }
+}
+```
+
+If there was an error, expect an HTTP status code in either the 4XX or 5XX range.
+
 ## Resource Operations
 
 ### create
