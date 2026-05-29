@@ -17,19 +17,23 @@
 #include <irods/dataObjTrim.h>
 #include <irods/dataObjUnlink.h>
 #include <irods/filesystem.hpp>
+#include <irods/filesystem/path.hpp>
 #include <irods/filesystem/path_utilities.hpp>
 #include <irods/irods_at_scope_exit.hpp>
 #include <irods/irods_exception.hpp>
 #include <irods/irods_version.h>
 #include <irods/key_value_proxy.hpp>
 #include <irods/modDataObjMeta.h>
+#include <irods/objStat.h>
 #include <irods/packStruct.h>
 #include <irods/phyPathReg.h>
+#include <irods/query_builder.hpp>
 #include <irods/rcMisc.h>
 #include <irods/replica_truncate.h>
 #include <irods/rodsErrorTable.h>
 #include <irods/rodsKeyWdDef.h>
 #include <irods/rodsPackInstruct.h>
+#include <irods/system_error.hpp>
 #include <irods/ticketAdmin.h>
 #include <irods/touch.h>
 #include <irods/version.hpp>
@@ -51,6 +55,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstdint>
 #include <mutex>
 #include <span>
 #include <shared_mutex>
@@ -1893,6 +1898,8 @@ namespace
 					}
 				}
 
+				json perms;
+#if IRODS_VERSION_INTEGER >= 5001000
 				const auto status = fs::client::status(conn, lpath_iter->second);
 
 				if (!fs::client::is_data_object(status)) {
@@ -1901,7 +1908,6 @@ namespace
 					return _sess_ptr->send(std::move(res));
 				}
 
-				json perms;
 				for (auto&& ep : status.permissions()) {
 					perms.push_back(json{
 						{"name", ep.name},
@@ -1910,11 +1916,61 @@ namespace
 						{"perm", irods::to_permission_string(ep.prms)},
 					});
 				}
+#else
+				// This preprocessor branch fixes a group permissions expansion bug in the iRODS
+				// filesystem library. The bug exists in versions of the development library prior
+				// to iRODS 5.1.0. For more information, see GitHub issue irods/irods#8912.
+
+				DataObjInp input{};
+				lpath_iter->second.copy(input.objPath, sizeof(DataObjInp::objPath) - 1);
+
+				rodsObjStat_t* output{};
+				std::int64_t data_id = -1;
+
+				if (const auto ec = rcObjStat(static_cast<RcComm*>(conn), &input, &output); ec == DATA_OBJ_T) {
+					const irods::at_scope_exit free_output{[output] { freeRodsObjStat(output); }};
+
+					try {
+						data_id = std::stoll(output->dataId);
+					}
+					catch (...) {
+						throw fs::filesystem_error{
+							"stat error: cannot convert string to integer",
+							lpath_iter->second,
+							irods::experimental::make_error_code(SYS_INTERNAL_ERR)};
+					}
+				}
+				else {
+					res.body() = json{{"irods_response", {{"status_code", NOT_A_DATA_OBJECT}}}}.dump();
+					res.prepare_payload();
+					return _sess_ptr->send(std::move(res));
+				}
+
+				irods::experimental::query_builder qb;
+
+				if (const auto zone = fs::zone_name(lpath_iter->second); zone) {
+					qb.zone_hint(*zone);
+				}
+
+				const auto query_string = fmt::format(
+					"select USER_NAME, USER_ZONE, USER_TYPE, DATA_ACCESS_NAME "
+					"where DATA_ACCESS_DATA_ID = '{}' and DATA_TOKEN_NAMESPACE = 'access_type'",
+					data_id);
+
+				for (const auto& row : qb.build<RcComm>(conn, query_string)) {
+					perms.push_back(json{
+						{"name", row[0]},
+						{"zone", row[1]},
+						{"type", row[2]},
+						{"perm", row[3]},
+					});
+				}
+#endif // IRODS_VERSION_INTEGER >= 5001000
 
 				// clang-format off
 				res.body() = json{
 					{"irods_response", {{"status_code", 0}}},
-					{"type", irods::to_object_type_string(status.type())},
+					{"type", "data_object"},
 					{"permissions", perms},
 					{"size", fs::client::data_object_size(conn, lpath_iter->second)},
 					{"checksum", fs::client::data_object_checksum(conn, lpath_iter->second)},
@@ -1923,7 +1979,7 @@ namespace
 				// clang-format on
 			}
 			catch (const fs::filesystem_error& e) {
-				logging::error(*_sess_ptr, "{}: {}", fn, e.what());
+				logging::error(*_sess_ptr, "{}: {}; lpath=[{}]", fn, e.what(), e.path1().c_str());
 				res.body() =
 					json{{"irods_response", {{"status_code", e.code().value()}, {"status_message", e.what()}}}}.dump();
 			}
