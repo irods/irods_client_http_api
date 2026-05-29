@@ -3841,6 +3841,183 @@ class test_data_objects_endpoint(unittest.TestCase):
             })
             self.logger.debug(r.content)
 
+    def test_stat_does_not_expand_group_permissions(self):
+        rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+
+        users = ['rodsuser1_issue_476', 'rodsuser2_issue_476']
+        groups = ['rodsgroup1_issue_476', 'rodsgroup2_issue_476']
+
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/data_object.txt'
+        group_permission = 'read_object'
+
+        try:
+            # Create two rodsusers.
+            for user in users:
+                r = requests.post(f'{self.url_base}/users-groups', headers=rodsadmin_headers, data={
+                    'op': 'create_user',
+                    'name': user,
+                    'zone': self.zone_name
+                })
+                self.logger.debug(r.content)
+                self.assertEqual(r.status_code, 200)
+                self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Create two groups.
+            for group in groups:
+                r = requests.post(f'{self.url_base}/users-groups', headers=rodsadmin_headers, data={
+                    'op': 'create_group',
+                    'name': group
+                })
+                self.logger.debug(r.content)
+                self.assertEqual(r.status_code, 200)
+                self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Add one user to each group.
+            r = requests.post(f'{self.url_base}/users-groups', headers=rodsadmin_headers, data={
+                'op': 'add_to_group',
+                'group': groups[0],
+                'user': users[1],
+                'zone': self.zone_name
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            r = requests.get(f'{self.url_base}/users-groups', headers=rodsadmin_headers, params={
+                'op': 'is_member_of_group',
+                'group': groups[0],
+                'user': users[1],
+                'zone': self.zone_name
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['is_member'], True)
+
+            r = requests.post(f'{self.url_base}/users-groups', headers=rodsadmin_headers, data={
+                'op': 'add_to_group',
+                'group': groups[1],
+                'user': users[0],
+                'zone': self.zone_name
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            r = requests.get(f'{self.url_base}/users-groups', headers=rodsadmin_headers, params={
+                'op': 'is_member_of_group',
+                'group': groups[1],
+                'user': users[0],
+                'zone': self.zone_name
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['is_member'], True)
+
+            # Create a data object and adjust the permissions such that only members
+            # of the groups can access it.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'touch',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            for group in groups:
+                r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                    'op': 'set_permission',
+                    'lpath': data_object,
+                    'entity-name': group,
+                    'permission': group_permission
+                })
+                self.logger.debug(r.content)
+                self.assertEqual(r.status_code, 200)
+                self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'set_permission',
+                'lpath': data_object,
+                'entity-name': self.rodsuser_username,
+                'permission': 'null'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show that retrieval of the permissions for groups are not expanded.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat',
+                'lpath': data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertIn('permissions', result)
+            self.assertEqual(len(result['permissions']), 2)
+            self.assertIn({'name': groups[0], 'zone': self.zone_name, 'type': 'rodsgroup', 'perm': group_permission}, result['permissions'])
+            self.assertIn({'name': groups[1], 'zone': self.zone_name, 'type': 'rodsgroup', 'perm': group_permission}, result['permissions'])
+
+        finally:
+            # Grant the original owner of the data object own permissions so that
+            # they can remove the data object.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'set_permission',
+                'lpath': data_object,
+                'entity-name': self.rodsuser_username,
+                'permission': 'own',
+                'admin': 1
+            })
+            self.logger.debug(r.content)
+
+            # Remove the data object.
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'remove',
+                'lpath': data_object,
+                'catalog-only': 0,
+                'no-trash': 1
+            })
+            self.logger.debug(r.content)
+
+            # Remove user from group.
+            r = requests.post(f'{self.url_base}/users-groups', headers=rodsadmin_headers, data={
+                'op': 'remove_from_group',
+                'group': groups[0],
+                'user': users[1],
+                'zone': self.zone_name
+            })
+            self.logger.debug(r.content)
+
+            r = requests.post(f'{self.url_base}/users-groups', headers=rodsadmin_headers, data={
+                'op': 'remove_from_group',
+                'group': groups[1],
+                'user': users[0],
+                'zone': self.zone_name
+            })
+            self.logger.debug(r.content)
+
+            # Remove users.
+            for user in users:
+                r = requests.post(f'{self.url_base}/users-groups', headers=rodsadmin_headers, data={
+                    'op': 'remove_user',
+                    'name': user,
+                    'zone': self.zone_name
+                })
+                self.logger.debug(r.content)
+
+            # Remove groups.
+            for group in groups:
+                r = requests.post(f'{self.url_base}/users-groups', headers=rodsadmin_headers, data={
+                    'op': 'remove_group',
+                    'name': group
+                })
+                self.logger.debug(r.content)
+
 class test_information_endpoint(unittest.TestCase):
 
     @classmethod
