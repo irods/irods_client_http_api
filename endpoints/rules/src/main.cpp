@@ -184,7 +184,7 @@ namespace
 				}
 
 				// Log messages stored in the RcComm::rError object.
-				if (auto* rerr_info = static_cast<RcComm*>(conn)->rError; rerr_info) {
+				if (auto*& rerr_info = static_cast<RcComm*>(conn)->rError; rerr_info) {
 					for (auto&& err : std::span(rerr_info->errMsg, rerr_info->len)) {
 						logging::info(
 							*_sess_ptr,
@@ -195,6 +195,7 @@ namespace
 					}
 
 					freeRError(rerr_info);
+					rerr_info = nullptr;
 				}
 
 				res.body() =
