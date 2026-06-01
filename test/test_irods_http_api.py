@@ -4661,6 +4661,30 @@ class test_rules_endpoint(unittest.TestCase):
     def test_server_reports_error_when_op_is_not_supported(self):
         do_test_server_reports_error_when_op_is_not_supported(self)
 
+    def test_server_does_not_terminate_on_invalid_rule_syntax(self):
+        headers = {'Authorization': 'Bearer ' + self.rodsuser_bearer_token}
+
+        # Execute invalid rule text against the iRODS rule language.
+        r = requests.post(self.url_endpoint, headers=headers, data={
+            'op': 'execute',
+            'rep-instance': 'irods_rule_engine_plugin-irods_rule_language-instance',
+            'rule-text': """hh"""
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+        result = r.json()
+        self.assertEqual(result['irods_response']['status_code'], irods_error_codes.NO_MICROSERVICE_FOUND_ERR)
+        self.assertEqual(result['stdout'], None)
+        self.assertEqual(result['stderr'], None)
+
+        # List the available rule engine plugins to show the server is responsive.
+        r = requests.get(self.url_endpoint, headers=headers, params={'op': 'list_rule_engines'})
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+        result = r.json()
+        self.assertEqual(result['irods_response']['status_code'], 0)
+        self.assertGreater(len(result['rule_engine_plugin_instances']), 0)
+
 class test_tickets_endpoint(unittest.TestCase):
 
     @classmethod
