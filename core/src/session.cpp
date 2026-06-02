@@ -36,11 +36,23 @@ namespace irods::http
 		, max_body_size_{_max_body_size}
 		, timeout_in_secs_{_timeout_in_seconds}
 	{
+		// Cache the IP address of the client. This was motivated by a situation
+		// in which the server would crash when retrieving the client IP address from
+		// an invalid socket, for logging purposes.
+		boost::system::error_code ec;
+		if (const auto ep = stream_.socket().remote_endpoint(ec); ec) {
+			namespace logging = irods::http::log;
+			logging::info("{}: Could not retrieve client IP address from socket.", __func__);
+			ip_ = "?";
+		}
+		else {
+			ip_ = ep.address().to_string();
+		}
 	} // session (constructor)
 
-	auto session::ip() const -> std::string
+	auto session::ip() const -> std::string_view
 	{
-		return stream_.socket().remote_endpoint().address().to_string();
+		return ip_;
 	} // ip
 
 	// Start the asynchronous operation

@@ -8,6 +8,8 @@
 
 #include <memory>
 #include <optional>
+#include <string>
+#include <string_view>
 
 namespace irods::http
 {
@@ -20,7 +22,7 @@ namespace irods::http
 			int _max_body_size,
 			int _timeout_in_seconds);
 
-		auto ip() const -> std::string;
+		auto ip() const -> std::string_view;
 
 		auto run() -> void;
 
@@ -73,6 +75,7 @@ namespace irods::http
 		std::optional<boost::beast::http::request_parser<boost::beast::http::string_body>> parser_;
 		std::shared_ptr<void> res_; // TODO Probably doesn't need to be a shared_ptr anymore. The session owns it and is
 		                            // available for the lifetime of the request.
+		std::string ip_;
 		const request_handler_map_type* req_handlers_;
 		int max_body_size_;
 		int timeout_in_secs_;
