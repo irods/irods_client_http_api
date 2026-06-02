@@ -74,8 +74,8 @@ namespace irods::http
 		std::shared_ptr<void> res_; // TODO Probably doesn't need to be a shared_ptr anymore. The session owns it and is
 		                            // available for the lifetime of the request.
 		const request_handler_map_type* req_handlers_;
-		const int max_body_size_;
-		const int timeout_in_secs_;
+		int max_body_size_;
+		int timeout_in_secs_;
 	}; // class session
 } // namespace irods::http
 
