@@ -1413,9 +1413,10 @@ namespace
 						first_stream.replica_number().value,
 						first_stream.leaf_resource_name().value);
 
-					// Open secondary streams using the first stream as a base.
+					// Open "stream_count-1" secondary streams, using the primary stream as a base.
+					// Starting the loop at 1 accounts for the primary stream and honors the requirement.
 					logging::trace(*_sess_ptr, "{}: Opening secondary output streams to [{}].", fn, lpath_iter->second);
-					for (int i = 0; i < stream_count; ++i) {
+					for (int i = 1; i < stream_count; ++i) {
 						pw_streams.emplace_back(std::make_shared<parallel_write_stream>(
 							client_info.username,
 							lpath_iter->second,
