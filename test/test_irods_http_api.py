@@ -3316,6 +3316,25 @@ class test_data_objects_endpoint(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
 
+    def test_parallel_write_init_operation_returns_an_error_when_stream_count_is_less_than_one(self):
+        headers = {'Authorization': 'Bearer ' + self.rodsuser_bearer_token}
+
+        r = requests.post(self.url_endpoint, headers=headers, data={
+            'op': 'parallel_write_init',
+            'lpath': '/does/not/matter',
+            'stream-count': 0
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 400)
+
+        r = requests.post(self.url_endpoint, headers=headers, data={
+            'op': 'parallel_write_init',
+            'lpath': '/does/not/matter',
+            'stream-count': -1
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 400)
+
     def test_resizing_replicas(self):
         rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
         rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
