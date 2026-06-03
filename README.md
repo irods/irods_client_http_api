@@ -345,6 +345,10 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
 
     // Defines iRODS connection information.
     "irods_client": {
+        // The string which is sent to the iRODS server to help identify connections
+        // established by the HTTP API.
+        "name": "irods_http_api",
+
         // The hostname or IP of the target iRODS server.
         "host": "<string>",
 

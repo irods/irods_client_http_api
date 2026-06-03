@@ -343,6 +343,11 @@ constexpr auto default_jsonschema() -> std::string_view
         "irods_client": {
             "type": "object",
             "properties": {
+                "name": {
+                    "type": "string",
+                    "pattern": "[^\\s]",
+                    "maxLength": 255
+                },
                 "host": {
                     "type": "string"
                 },
@@ -525,6 +530,8 @@ auto print_configuration_template() -> void
     }},
 
     "irods_client": {{
+        "name": "irods_http_api",
+
         "host": "<string>",
         "port": 1247,
         "zone": "<string>",
@@ -658,6 +665,12 @@ auto is_valid_configuration(const std::string& _schema_path, const std::string& 
 
 	return false;
 } // is_valid_configuration
+
+auto set_ips_display_name(const json& _config) -> void
+{
+	const auto name = _config.value(json::json_pointer{"/irods_client/name"}, "irods_http_api");
+	set_ips_display_name(name.c_str());
+} // set_ips_display_name
 
 auto set_log_level(const json& _config) -> void
 {
@@ -952,8 +965,6 @@ auto main(int _argc, char* _argv[]) -> int
 	po::positional_options_description pod;
 	pod.add("config-file", 1);
 
-	set_ips_display_name("irods_http_api");
-
 	try {
 		po::variables_map vm;
 		po::store(po::command_line_parser(_argc, _argv).options(opts_desc).positional(pod).run(), vm);
@@ -1000,6 +1011,8 @@ auto main(int _argc, char* _argv[]) -> int
 		}();
 
 		irods::http::globals::set_configuration(config);
+
+		set_ips_display_name(config);
 
 		{
 			const auto schema_file = (vm.count("jsonschema-file") > 0) ? vm["jsonschema-file"].as<std::string>() : "";
