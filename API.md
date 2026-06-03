@@ -1012,7 +1012,7 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     --data-urlencode 'truncate=<integer>' \ # 0 or 1. Defaults to 1. Truncates the data object before writing. Optional.
     --data-urlencode 'append=<integer>' \ # 0 or 1. Defaults to 0. Appends the bytes to the data object. Optional.
     --data-urlencode 'ticket=<string>' \ # The ticket to enable for all streams. Optional.
-    --data-urlencode 'stream-count=<integer>' # Number of streams to open.
+    --data-urlencode 'stream-count=<integer>' # Number of streams to open. Must be greater than or equal to 1.
 ```
 
 `resource` and `replica-number` are mutually exclusive parameters. The behavior of the operation is unspecified if both parameters are provided.
