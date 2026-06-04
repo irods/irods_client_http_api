@@ -1339,8 +1339,8 @@ curl http://localhost:<port>/irods-http-api/<version>/query \
     -H 'Authorization: Bearer <token>' \
     --data-urlencode 'op=execute_genquery' \
     --data-urlencode 'query=<string>' \
-    --data-urlencode 'offset=<integer>' \ # Number of rows to skip. Defaults to 0. Optional.
-    --data-urlencode 'count=<integer>' \ # Number of rows to return. Default set by administrator. Optional.
+    --data-urlencode 'offset=<integer>' \ # Number of rows to skip. Defaults to 0. Only supported by GenQuery1. Optional.
+    --data-urlencode 'count=<integer>' \ # Number of rows to return. Default set by administrator. Only supported by GenQuery1. Optional.
     --data-urlencode 'case-sensitive=<integer>' \ # Execute a case sensitive/insensitive query. Defaults to 1. Only supported by GenQuery1. Optional.
     --data-urlencode 'distinct=<integer>' \ # Collapse duplicate rows. Defaults to 1. Only supported by GenQuery1. Optional.
     --data-urlencode 'parser=<string>' \ # genquery1 or genquery2. Defaults to genquery1. Optional.
