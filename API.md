@@ -1261,7 +1261,7 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     --data-urlencode 'new-data-checksum=<string>' \
     --data-urlencode 'new-data-comments=<string>' \
     --data-urlencode 'new-data-create-time=<string>' \
-    --data-urlencode 'new-data-expiry=<string>' \
+    --data-urlencode 'new-data-expiry-time=<string>' \
     --data-urlencode 'new-data-mode=<string>' \
     --data-urlencode 'new-data-modify-time=<string>' \
     --data-urlencode 'new-data-path=<string>' \
@@ -1280,7 +1280,7 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
 The following parameters must be 11 bytes in length and padded with leading zeros.
 - `new-data-access-time`
 - `new-data-create-time`
-- `new-data-expiry`
+- `new-data-expiry-time`
 - `new-data-modify-time`
 
 `new-data-access-time` is supported by iRODS 5 only. Attempting to modify this property while connected to an iRODS server earlier than 5.0.0 will result in an HTTP status code of 400.

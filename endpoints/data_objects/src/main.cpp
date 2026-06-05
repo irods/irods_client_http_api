@@ -2784,7 +2784,7 @@ namespace
 					{"new-data-checksum", CHKSUM_KW},
 					{"new-data-comments", DATA_COMMENTS_KW},
 					{"new-data-create-time", DATA_CREATE_KW},
-					{"new-data-expiry", DATA_EXPIRY_KW},
+					{"new-data-expiry-time", DATA_EXPIRY_KW},
 					{"new-data-mode", DATA_MODE_KW},
 					{"new-data-modify-time", DATA_MODIFY_KW},
 					//{"new-data-owner-name", DATA_OWNER_KW},
