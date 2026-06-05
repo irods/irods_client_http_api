@@ -1260,8 +1260,8 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     --data-urlencode 'replica-number=<integer>' \
     --data-urlencode 'new-data-checksum=<string>' \
     --data-urlencode 'new-data-comments=<string>' \
-    --data-urlencode 'new-data-create-time=<integer>' \
-    --data-urlencode 'new-data-expiry=<integer>' \
+    --data-urlencode 'new-data-create-time=<string>' \
+    --data-urlencode 'new-data-expiry=<string>' \
     --data-urlencode 'new-data-mode=<string>' \
     --data-urlencode 'new-data-modify-time=<string>' \
     --data-urlencode 'new-data-path=<string>' \
@@ -1272,10 +1272,16 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     --data-urlencode 'new-data-status=<string>' \
     --data-urlencode 'new-data-type-name=<string>' \
     --data-urlencode 'new-data-version=<string>' \
-    --data-urlencode 'new-data-access-time=<string>' # Must be 11 bytes in length and padded with leading zeros.
+    --data-urlencode 'new-data-access-time=<string>'
 ```
 
 `resource-hierarchy` and `replica-number` are mutually exclusive parameters.
+
+The following parameters must be 11 bytes in length and padded with leading zeros.
+- `new-data-access-time`
+- `new-data-create-time`
+- `new-data-expiry`
+- `new-data-modify-time`
 
 `new-data-access-time` is supported by iRODS 5 only. Attempting to modify this property while connected to an iRODS server earlier than 5.0.0 will result in an HTTP status code of 400.
 
