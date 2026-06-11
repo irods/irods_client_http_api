@@ -1611,7 +1611,7 @@ curl http://localhost:<port>/irods-http-api/<version>/resources \
     --data-urlencode 'op=add_child' \
     --data-urlencode 'parent-name=<string>' \
     --data-urlencode 'child-name=<string>' \
-    --data-urlencode 'context=<string>' # Additional information for the zone. Optional.
+    --data-urlencode 'context=<string>' # Information for the parent to help in managing the child. Optional.
 ```
 
 #### Response
