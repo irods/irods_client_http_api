@@ -37,7 +37,7 @@ namespace irods::http::handler
 			res.keep_alive(_req.keep_alive());
 
 			// clang-format off
-			res.body() = json{
+			json server_info{
 				{"api_version", irods::http::version::api_version},
 				{"build", irods::http::version::sha},
 				{"irods_zone", irods_client_config.at("zone")},
@@ -45,9 +45,15 @@ namespace irods::http::handler
 				{"max_number_of_rows_per_catalog_query", irods_client_config.at("max_number_of_rows_per_catalog_query")},
 				{"max_size_of_request_body_in_bytes", http_server_config.at(json::json_pointer{"/requests/max_size_of_request_body_in_bytes"})},
 				{"openid_connect_enabled", http_server_config.contains(json::json_pointer{"/authentication/openid_connect"})}
-			}.dump();
+			};
 			// clang-format on
 
+			// Include the version of the iRODS server if this is an authenticated request.
+			if (auto result = irods::http::resolve_client_identity(_req); !result.response) {
+				server_info["irods_server_version"] = globals::get_irods_server_version();
+			}
+
+			res.body() = server_info.dump();
 			res.prepare_payload();
 
 			return _sess_ptr->send(std::move(res));

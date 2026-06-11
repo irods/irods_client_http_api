@@ -24,6 +24,9 @@ namespace
 
 	// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 	boost::dll::shared_library g_user_map_lib;
+
+	// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+	std::string g_irods_server_version;
 } // anonymous namespace
 
 namespace irods::http::globals
@@ -108,4 +111,14 @@ namespace irods::http::globals
 	{
 		return g_user_map_lib;
 	} // user_mapping_lib
+
+	auto set_irods_server_version(std::string _version) -> void
+	{
+		g_irods_server_version = std::move(_version);
+	} // set_irods_server_version
+
+	auto get_irods_server_version() -> const std::string&
+	{
+		return g_irods_server_version;
+	} // get_irods_server_version
 } // namespace irods::http::globals

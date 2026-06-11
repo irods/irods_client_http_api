@@ -7,6 +7,7 @@
 #include "irods/private/http_api/process_stash.hpp"
 #include "irods/private/http_api/version.hpp"
 
+#include <irods/client_connection.hpp>
 #include <irods/connection_pool.hpp>
 #include <irods/fully_qualified_username.hpp>
 #include <irods/irods_configuration_keywords.hpp>
@@ -1075,10 +1076,39 @@ auto main(int _argc, char* _argv[]) -> int
 
 		std::unique_ptr<irods::connection_pool> conn_pool;
 
+		// Initialize the connection pool and cache the version of the iRODS server.
 		if (!config.at(json::json_pointer{"/irods_client/enable_4_2_compatibility"}).get<bool>()) {
 			logging::trace("Initializing iRODS connection pool.");
 			conn_pool = init_irods_connection_pool(config);
 			irods::http::globals::set_connection_pool(*conn_pool);
+
+			// Cache the version of the connected iRODS server. The /info endpoint includes
+			// the iRODS server version in the response for authenticated HTTP requests.
+			// This value MUST NOT influence the behavior of the HTTP API. It is purely for
+			// the user/application interacting with the HTTP API.
+			auto conn = conn_pool->get_connection();
+			irods::http::globals::set_irods_server_version(static_cast<RcComm&>(conn).svrVersion->relVersion);
+		}
+		else {
+			// The admin has decided that no connection pool will be used. Connect to the server
+			// using the admin credentials. There's no need to authenticate since we're only interested
+			// in the version of the connected iRODS server.
+			const auto& host = config.at(json::json_pointer{"/irods_client/host"}).get_ref<const std::string&>();
+			const auto port = config.at(json::json_pointer{"/irods_client/port"}).get<int>();
+			const auto& zone = config.at(json::json_pointer{"/irods_client/zone"}).get_ref<const std::string&>();
+			const auto& username = config.at(json::json_pointer{"/irods_client/proxy_admin_account/username"})
+			                           .get_ref<const std::string&>();
+			const irods::experimental::client_connection conn{
+				irods::experimental::defer_authentication,
+				host,
+				port,
+				irods::experimental::fully_qualified_username{username, zone}};
+
+			// Cache the version of the connected iRODS server. The /info endpoint includes
+			// the iRODS server version in the response for authenticated HTTP requests.
+			// This value MUST NOT influence the behavior of the HTTP API. It is purely for
+			// the user/application interacting with the HTTP API.
+			irods::http::globals::set_irods_server_version(static_cast<RcComm&>(conn).svrVersion->relVersion);
 		}
 
 		// The io_context is required for all I/O.

@@ -4041,7 +4041,11 @@ class test_information_endpoint(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        setup_class(cls, {'endpoint_name': 'info', 'init_rodsadmin': False})
+        setup_class(cls, {'endpoint_name': 'info'})
+
+    @classmethod
+    def tearDownClass(cls):
+        tear_down_class(cls)
 
     def setUp(self):
         self.assertFalse(self._class_init_error, 'Class initialization failed. Cannot continue.')
@@ -4054,6 +4058,26 @@ class test_information_endpoint(unittest.TestCase):
         info = r.json()
         self.assertIn('api_version', info)
         self.assertIn('build', info)
+        self.assertIn('irods_zone', info)
+        self.assertIn('max_number_of_parallel_write_streams', info)
+        self.assertIn('max_number_of_rows_per_catalog_query', info)
+        self.assertIn('max_size_of_request_body_in_bytes', info)
+        self.assertIn('openid_connect_enabled', info)
+
+        # This property should not be available because the request is not from
+        # an authenticated user.
+        self.assertNotIn('irods_server_version', info)
+
+    def test_irods_server_version_is_included_in_json_structure_for_authenticated_requests(self):
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+        r = requests.get(self.url_endpoint, headers=rodsuser_headers)
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+
+        info = r.json()
+        self.assertIn('api_version', info)
+        self.assertIn('build', info)
+        self.assertIn('irods_server_version', info)
         self.assertIn('irods_zone', info)
         self.assertIn('max_number_of_parallel_write_streams', info)
         self.assertIn('max_number_of_rows_per_catalog_query', info)
