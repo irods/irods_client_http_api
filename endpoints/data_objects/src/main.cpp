@@ -23,6 +23,7 @@
 #include <irods/irods_exception.hpp>
 #include <irods/irods_version.h>
 #include <irods/key_value_proxy.hpp>
+#include <irods/library_features.h>
 #include <irods/modDataObjMeta.h>
 #include <irods/objStat.h>
 #include <irods/packStruct.h>
@@ -152,7 +153,11 @@ namespace
 			}
 
 			if (!stream_) {
+#ifdef IRODS_LIBRARY_FEATURE_DSTREAM
+				THROW(stream_.last_error(), fmt::format("Could not open output stream to [{}].", _path));
+#else
 				THROW(INVALID_HANDLE, fmt::format("Could not open output stream to [{}].", _path));
+#endif // IRODS_LIBRARY_FEATURE_DSTREAM
 			}
 		} // parallel_write_stream (constructor)
 
@@ -1189,7 +1194,11 @@ namespace
 					// clang-format off
 					res.body() = json{
 						{"irods_response", {
+#ifdef IRODS_LIBRARY_FEATURE_DSTREAM
+							{"status_code", out_ptr->last_error()},
+#else
 							{"status_code", INVALID_HANDLE},
+#endif // IRODS_LIBRARY_FEATURE_DSTREAM
 							{"status_message", "Output stream to data object is in a bad state."}
 						}}
 					}.dump();
@@ -1228,7 +1237,11 @@ namespace
 						// clang-format off
 						res.body() = json{
 							{"irods_response", {
+#ifdef IRODS_LIBRARY_FEATURE_DSTREAM
+								{"status_code", out_ptr->last_error()},
+#else
 								{"status_code", INVALID_HANDLE},
+#endif // IRODS_LIBRARY_FEATURE_DSTREAM
 								{"status_message", "Output stream to data object is in a bad state."}
 							}}
 						}.dump();
@@ -3372,7 +3385,11 @@ namespace irods::http::endpoint_operation
 				// clang-format off
 				res.body() = json{
 					{"irods_response", {
+#ifdef IRODS_LIBRARY_FEATURE_DSTREAM
+						{"status_code", out_ptr->last_error()},
+#else
 						{"status_code", INVALID_HANDLE},
+#endif // IRODS_LIBRARY_FEATURE_DSTREAM
 						{"status_message", "Output stream to data object is in a bad state."}
 					}}
 				}.dump();
@@ -3411,7 +3428,11 @@ namespace irods::http::endpoint_operation
 					// clang-format off
 					res.body() = json{
 						{"irods_response", {
+#ifdef IRODS_LIBRARY_FEATURE_DSTREAM
+							{"status_code", out_ptr->last_error()},
+#else
 							{"status_code", INVALID_HANDLE},
+#endif // IRODS_LIBRARY_FEATURE_DSTREAM
 							{"status_message", "Output stream to data object is in a bad state."}
 						}}
 					}.dump();
