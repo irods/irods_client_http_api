@@ -9,6 +9,7 @@
 
 #include <irods/generalAdmin.h>
 #include <irods/irods_exception.hpp>
+#include <irods/library_features.h>
 #include <irods/query_builder.hpp>
 #include <irods/resource_administration.hpp>
 #include <irods/rodsErrorTable.h>
@@ -569,7 +570,7 @@ namespace
 						"RESC_LOC, RESC_VAULT_PATH, RESC_STATUS, "
 						"RESC_CONTEXT, RESC_COMMENT, RESC_INFO, "
 						"RESC_FREE_SPACE, RESC_FREE_SPACE_TIME, "
-						"RESC_PARENT, RESC_CREATE_TIME, RESC_MODIFY_TIME "
+						"RESC_PARENT, RESC_CREATE_TIME, RESC_MODIFY_TIME, RESC_PARENT_CONTEXT "
 						"where RESC_NAME = '{}'",
 						name_iter->second);
 
@@ -593,7 +594,8 @@ namespace
 							{"parent_id", row[11]},
 							{"created", std::stoull(row[12])},
 							{"last_modified", std::stoull(row[13])},
-							{"last_modified_millis", 0}
+							{"last_modified_millis", 0},
+							{"parent_context", row[14]},
 						};
 						// clang-format on
 
@@ -610,10 +612,22 @@ namespace
 					// for the resource status. Therefore, the HTTP API uses GenQuery to retrieve the status
 					// value set by the admin.
 					std::string status;
-					const auto gql = fmt::format("select RESC_STATUS where RESC_NAME = '{}'", name_iter->second);
-					for (auto&& row : irods::experimental::query_builder{}.build<RcComm>(conn, gql)) {
+#ifdef IRODS_LIBRARY_FEATURE_RESOURCE_ADMINISTRATION
+					const auto query_str = fmt::format("select RESC_STATUS where RESC_NAME = '{}'", name_iter->second);
+					for (auto&& row : irods::experimental::query_builder{}.build<RcComm>(conn, query_str)) {
 						status = std::move(row[0]);
 					}
+#else
+					// The resource administration library provided by the iRODS development package does not
+					// expose the parent context string. Use GenQuery to retrieve it.
+					std::string parent_context;
+					const auto query_str = fmt::format(
+						"select RESC_STATUS, RESC_PARENT_CONTEXT where RESC_NAME = '{}'", name_iter->second);
+					for (auto&& row : irods::experimental::query_builder{}.build<RcComm>(conn, query_str)) {
+						status = std::move(row[0]);
+						parent_context = std::move(row[1]);
+					}
+#endif // IRODS_LIBRARY_FEATURE_RESOURCE_ADMINISTRATION
 
 					// clang-format off
 					info = {
@@ -632,7 +646,12 @@ namespace
 						{"parent_id", resc->parent_id()},
 						{"created", resc->created().time_since_epoch().count()},
 						{"last_modified", resc->last_modified().time_since_epoch().count()},
-						{"last_modified_millis", resc->last_modified_millis().count()}
+						{"last_modified_millis", resc->last_modified_millis().count()},
+#ifdef IRODS_LIBRARY_FEATURE_RESOURCE_ADMINISTRATION
+						{"parent_context", resc->parent_context_string()},
+#else
+						{"parent_context", parent_context},
+#endif // IRODS_LIBRARY_FEATURE_RESOURCE_ADMINISTRATION
 					};
 					// clang-format on
 				}

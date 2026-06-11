@@ -4766,6 +4766,107 @@ class test_resources_endpoint(unittest.TestCase):
     def test_server_reports_error_when_op_is_not_supported(self):
         do_test_server_reports_error_when_op_is_not_supported(self)
 
+    def test_stat_info_includes_parent_context_string(self):
+        rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
+        root_resource = 'issue_473_root_resc'
+        child_resource = 'issue_473_child_resc'
+
+        try:
+            # Create two resources.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'create',
+                'name': root_resource,
+                'type': 'replication'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'create',
+                'name': child_resource,
+                'type': 'passthru'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Make the passthru resource a child of the replication resource.
+            # No parent context string is set. This verifies that empty strings do
+            # not break the stat operation.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'add_child',
+                'parent-name': root_resource,
+                'child-name': child_resource
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the parent context string is available, but empty.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat',
+                'name': child_resource
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['exists'], True)
+            self.assertEqual(result['info']['parent_context'], '')
+
+            # Remove the child resource from the parent resource.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'remove_child',
+                'parent-name': root_resource,
+                'child-name': child_resource
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Make the passthru resource a child of the replication resource again,
+            # but set the parent context string too.
+            parent_context = 'issue_473_parent_context'
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'add_child',
+                'parent-name': root_resource,
+                'child-name': child_resource,
+                'context': parent_context
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the parent context string matches the string we expect.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat',
+                'name': child_resource
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(result['exists'], True)
+            self.assertEqual(result['info']['parent_context'], parent_context)
+
+        finally:
+            # Remove the child resource from the parent resource.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'remove_child',
+                'parent-name': root_resource,
+                'child-name': child_resource
+            })
+            self.logger.debug(r.content)
+
+            # Remove the resources.
+            for resc in [root_resource, child_resource]:
+                r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                    'op': 'remove',
+                    'name': resc
+                })
+                self.logger.debug(r.content)
+
 class test_rules_endpoint(unittest.TestCase):
 
     @classmethod

@@ -1730,6 +1730,7 @@ If an HTTP status code of 200 is returned, the body of the response will contain
         "vault_path": "string",
         "status": "string",
         "context": "string",
+        "parent_context": "string",
         "comments": "string",
         "information": "string",
         "free_space": "string",
