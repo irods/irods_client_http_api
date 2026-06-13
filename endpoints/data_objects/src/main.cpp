@@ -185,8 +185,10 @@ namespace
 
 	struct parallel_write_context
 	{
+		// NOLINTBEGIN(misc-non-private-member-variables-in-classes)
 		std::vector<std::shared_ptr<parallel_write_stream>> streams;
 		std::unique_ptr<std::mutex> mtx;
+		// NOLINTEND(misc-non-private-member-variables-in-classes)
 
 		auto find_available_parallel_write_stream() -> parallel_write_stream*
 		{
@@ -205,9 +207,11 @@ namespace
 		} // find_available_parallel_write_stream
 	}; // struct parallel_write_context
 
-	std::shared_mutex pwc_mtx;
-	std::unordered_map<std::string, parallel_write_context> parallel_write_contexts;
+	// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+	std::shared_mutex g_pwc_mtx;
+	std::unordered_map<std::string, parallel_write_context> g_parallel_write_contexts;
 	std::atomic<int> g_active_parallel_write_streams;
+	// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 	//
 	// Handler function prototypes
@@ -1072,7 +1076,7 @@ namespace
 					decltype(parallel_write_contexts)::iterator iter;
 
 					{
-						std::shared_lock lk{pwc_mtx};
+						const std::shared_lock lk{pwc_mtx};
 
 						iter = parallel_write_contexts.find(parallel_write_handle_iter->second);
 						if (iter == std::end(parallel_write_contexts)) {
@@ -1488,7 +1492,7 @@ namespace
 				decltype(parallel_write_contexts)::iterator pwc_iter;
 
 				{
-					std::scoped_lock lk{pwc_mtx};
+					const std::scoped_lock lk{pwc_mtx};
 
 					transfer_handle = irods::generate_uuid(parallel_write_contexts);
 					logging::debug(*_sess_ptr, "{}: (init) Parallel Write Handle = [{}].", fn, transfer_handle);
@@ -1580,7 +1584,7 @@ namespace
 				logging::debug(*_sess_ptr, "{}: Parallel write handle = [{}]", fn, parallel_write_handle_iter->second);
 
 				{
-					std::scoped_lock lk{pwc_mtx};
+					const std::scoped_lock lk{pwc_mtx};
 
 					const auto pw_iter = parallel_write_contexts.find(parallel_write_handle_iter->second);
 					if (pw_iter != std::end(parallel_write_contexts)) {
@@ -3271,7 +3275,7 @@ namespace irods::http::endpoint_operation
 				decltype(parallel_write_contexts)::iterator iter;
 
 				{
-					std::shared_lock lk{pwc_mtx};
+					const std::shared_lock lk{pwc_mtx};
 
 					iter = parallel_write_contexts.find(parallel_write_handle_iter->value());
 					if (iter == std::end(parallel_write_contexts)) {
