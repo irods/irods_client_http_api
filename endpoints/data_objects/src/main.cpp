@@ -1360,11 +1360,7 @@ namespace
 
 				const auto stream_count = std::stoi(stream_count_iter->second);
 				if (stream_count < 1) {
-					logging::error(
-						*_sess_ptr,
-						"{}: Argument for [stream-count] parameter is less than 1.",
-						fn,
-						stream_count_iter->second);
+					logging::error(*_sess_ptr, "{}: Argument for [stream-count] parameter is less than 1.", fn);
 					res.result(http::status::bad_request);
 					res.prepare_payload();
 					return _sess_ptr->send(std::move(res));
@@ -1381,8 +1377,7 @@ namespace
 							*_sess_ptr,
 							"{}: Argument for [stream-count] parameter exceeds maximum number of streams per "
 							"parallel-write-handle.",
-							fn,
-							stream_count_iter->second);
+							fn);
 						res.result(http::status::bad_request);
 						res.prepare_payload();
 						return _sess_ptr->send(std::move(res));
