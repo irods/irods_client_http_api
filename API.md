@@ -1029,6 +1029,8 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
 
 If there was an error, expect an HTTP status code in either the 4XX or 5XX range.
 
+If the number of streams specified by `stream-count` cannot be reserved, the HTTP API will return a HTTP status code of 503 (Service Unavailable).
+
 ### parallel_write_shutdown
 
 Instructs the server to shutdown and release any resources used for parallel write operations.
@@ -1320,7 +1322,7 @@ If an HTTP status code of 200 is returned, the body of the response will contain
     "build": "string",
     "irods_server_version": "string", // Included for authenticated requests.
     "irods_zone": "string",
-    "max_number_of_parallel_write_streams": 0,
+    "max_number_of_streams_per_parallel_write_handle": 0,
     "max_number_of_rows_per_catalog_query": 0,
     "max_size_of_request_body_in_bytes": 0,
     "openid_connect_enabled": false

@@ -207,6 +207,7 @@ namespace
 
 	std::shared_mutex pwc_mtx;
 	std::unordered_map<std::string, parallel_write_context> parallel_write_contexts;
+	std::atomic<int> g_active_parallel_write_streams;
 
 	//
 	// Handler function prototypes
@@ -1369,18 +1370,39 @@ namespace
 					return _sess_ptr->send(std::move(res));
 				}
 
-				if (stream_count > irods::http::globals::configuration()
-				                       .at(json::json_pointer{"/irods_client/max_number_of_parallel_write_streams"})
-				                       .get<int>())
 				{
-					logging::error(
-						*_sess_ptr,
-						"{}: Argument for [stream-count] parameter exceeds maximum number of streams allowed.",
-						fn,
-						stream_count_iter->second);
-					res.result(http::status::bad_request);
-					res.prepare_payload();
-					return _sess_ptr->send(std::move(res));
+					const auto& config = irods::http::globals::configuration();
+
+					if (stream_count >
+					    config.at(json::json_pointer{"/irods_client/max_number_of_streams_per_parallel_write_handle"})
+					        .get<int>())
+					{
+						logging::error(
+							*_sess_ptr,
+							"{}: Argument for [stream-count] parameter exceeds maximum number of streams per "
+							"parallel-write-handle.",
+							fn,
+							stream_count_iter->second);
+						res.result(http::status::bad_request);
+						res.prepare_payload();
+						return _sess_ptr->send(std::move(res));
+					}
+
+					if (const auto active = g_active_parallel_write_streams.load();
+					    active + stream_count >
+					    config.at(json::json_pointer{"/irods_client/max_number_of_parallel_write_streams"}).get<int>())
+					{
+						logging::error(
+							*_sess_ptr,
+							"{}: Argument for [stream-count] parameter would exceed maximum number of parallel streams "
+							"allowed by system: stream-count=[{}], active=[{}]",
+							fn,
+							stream_count,
+							active);
+						res.result(http::status::service_unavailable);
+						res.prepare_payload();
+						return _sess_ptr->send(std::move(res));
+					}
 				}
 
 				namespace io = irods::experimental::io;
@@ -1427,6 +1449,7 @@ namespace
 					// Open the primary stream.
 					pw_streams.emplace_back(std::make_shared<parallel_write_stream>(
 						client_info.username, lpath_iter->second, resource, replica_number, openmode, ticket));
+					g_active_parallel_write_streams += 1;
 
 					auto& first_stream = pw_streams.front()->stream();
 					logging::debug(
@@ -1449,6 +1472,7 @@ namespace
 							openmode,
 							ticket,
 							&pw_streams.front()->stream()));
+						g_active_parallel_write_streams += 1;
 					}
 				}
 				catch (const irods::exception& e) {
@@ -1581,19 +1605,21 @@ namespace
 
 						for (auto iter = std::rbegin(pw_iter->second.streams); iter != end; ++iter) {
 							(*iter)->stream().close(&close_input);
+							g_active_parallel_write_streams -= 1;
 						}
 
 						// Allow the first stream to update the catalog.
 						logging::trace(
 							*_sess_ptr, "{}: Closing primary output stream and updating catalog information.", fn);
 						pw_iter->second.streams.front()->stream().close();
+						g_active_parallel_write_streams -= 1;
 
 						logging::trace(
 							*_sess_ptr,
 							"{}: Removing parallel write handle [{}].",
 							fn,
 							parallel_write_handle_iter->second);
-						parallel_write_contexts.erase(pw_iter);
+						g_parallel_write_contexts.erase(pw_iter);
 					}
 				}
 

@@ -41,7 +41,7 @@ namespace irods::http::handler
 				{"api_version", irods::http::version::api_version},
 				{"build", irods::http::version::sha},
 				{"irods_zone", irods_client_config.at("zone")},
-				{"max_number_of_parallel_write_streams", irods_client_config.at("max_number_of_parallel_write_streams")},
+				{"max_number_of_streams_per_parallel_write_handle", irods_client_config.at("max_number_of_streams_per_parallel_write_handle")},
 				{"max_number_of_rows_per_catalog_query", irods_client_config.at("max_number_of_rows_per_catalog_query")},
 				{"max_size_of_request_body_in_bytes", http_server_config.at(json::json_pointer{"/requests/max_size_of_request_body_in_bytes"})},
 				{"openid_connect_enabled", http_server_config.contains(json::json_pointer{"/authentication/openid_connect"})}

@@ -459,9 +459,14 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
             "refresh_when_resource_changes_detected": true
         },
 
+        // The maximum number of parallel streams that can be reserved by
+        // the HTTP API across all clients. Exceeding this limit will result
+        // in an HTTP status code of 503 (Service Unavailable).
+        "max_number_of_parallel_write_streams": 15,
+
         // The maximum number of parallel streams that can be associated to a
         // single parallel write handle.
-        "max_number_of_parallel_write_streams": 3,
+        "max_number_of_streams_per_parallel_write_handle": 3,
 
         // The maximum number of bytes that can be read from a data object
         // during a single read operation.
