@@ -4058,6 +4058,98 @@ class test_data_objects_endpoint(unittest.TestCase):
                 })
                 self.logger.debug(r.content)
 
+    def test_parallel_write_init_returns_http_status_code_503_when_max_number_of_parallel_write_streams_is_exceeded(self):
+        # This test assumes the HTTP API is configured to allow no more than 15
+        # parallel-write streams in the system and that no more than 3 streams
+        # can be created per parallel_write_init invocation.
+        #
+        # TODO(#322): Test needs access to the HTTP API's configuration so that
+        # it can adapt to the environment.
+
+        rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+
+        parallel_write_data_objects = []
+        parallel_write_handles = []
+
+        try:
+            data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/issues_79_and_484.txt'
+
+            # Invoke parallel_write_init until 15 streams exist in the system.
+            for i in range(5):
+                parallel_write_data_objects.append(data_object + f'.{i}')
+                r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                    'op': 'parallel_write_init',
+                    'lpath': parallel_write_data_objects[-1],
+                    'stream-count': 3
+                })
+                self.logger.debug(r.content)
+                self.assertEqual(r.status_code, 200)
+                result = r.json()
+                self.assertEqual(result['irods_response']['status_code'], 0)
+                self.assertGreater(len(result['parallel_write_handle']), 0)
+                parallel_write_handles.append(result['parallel_write_handle'])
+
+            # Show that exceeding the stream limit is detected and results in the
+            # expected HTTP status code.
+            other_data_object = data_object + '.nope'
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'parallel_write_init',
+                'lpath': other_data_object,
+                'stream-count': 2
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 503)
+
+            # Show the data object does not exist.
+            r = requests.get(self.url_endpoint, headers=rodsuser_headers, params={
+                'op': 'stat',
+                'lpath': other_data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.NOT_A_DATA_OBJECT)
+
+            # Show that exceeding the stream limit as a different user results
+            # in the same HTTP status code.
+            other_data_object = f'/{self.zone_name}/home/{self.rodsadmin_username}/issues_79_and_484.txt'
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'parallel_write_init',
+                'lpath': other_data_object,
+                'stream-count': 2
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 503)
+
+            # Show the data object does not exist.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat',
+                'lpath': other_data_object
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.NOT_A_DATA_OBJECT)
+
+        finally:
+            # Invoke parallel_write_shutdown to free up resources reserved by the
+            # calls to parallel_write_init.
+            for handle in parallel_write_handles:
+                r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                    'op': 'parallel_write_shutdown',
+                    'parallel-write-handle': handle
+                })
+                self.logger.debug(r.content)
+
+            # Remove the data objects.
+            for data_object in parallel_write_data_objects:
+                r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                    'op': 'remove',
+                    'lpath': data_object,
+                    'catalog-only': 0,
+                    'no-trash': 1
+                })
+                self.logger.debug(r.content)
+
 class test_information_endpoint(unittest.TestCase):
 
     @classmethod
