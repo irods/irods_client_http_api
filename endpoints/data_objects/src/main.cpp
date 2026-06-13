@@ -1073,13 +1073,13 @@ namespace
 						fn,
 						parallel_write_handle_iter->second);
 
-					decltype(parallel_write_contexts)::iterator iter;
+					decltype(g_parallel_write_contexts)::iterator iter;
 
 					{
-						const std::shared_lock lk{pwc_mtx};
+						const std::shared_lock lk{g_pwc_mtx};
 
-						iter = parallel_write_contexts.find(parallel_write_handle_iter->second);
-						if (iter == std::end(parallel_write_contexts)) {
+						iter = g_parallel_write_contexts.find(parallel_write_handle_iter->second);
+						if (iter == std::end(g_parallel_write_contexts)) {
 							logging::error(*_sess_ptr, "{}: Invalid handle for parallel write.", fn);
 							return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
 						}
@@ -1489,16 +1489,16 @@ namespace
 				}
 
 				std::string transfer_handle;
-				decltype(parallel_write_contexts)::iterator pwc_iter;
+				decltype(g_parallel_write_contexts)::iterator pwc_iter;
 
 				{
-					const std::scoped_lock lk{pwc_mtx};
+					const std::scoped_lock lk{g_pwc_mtx};
 
-					transfer_handle = irods::generate_uuid(parallel_write_contexts);
+					transfer_handle = irods::generate_uuid(g_parallel_write_contexts);
 					logging::debug(*_sess_ptr, "{}: (init) Parallel Write Handle = [{}].", fn, transfer_handle);
 
 					auto [iter, insertion_result] =
-						parallel_write_contexts.emplace(transfer_handle, parallel_write_context{});
+						g_parallel_write_contexts.emplace(transfer_handle, parallel_write_context{});
 					if (!insertion_result) {
 						logging::error(
 							*_sess_ptr,
@@ -1584,10 +1584,10 @@ namespace
 				logging::debug(*_sess_ptr, "{}: Parallel write handle = [{}]", fn, parallel_write_handle_iter->second);
 
 				{
-					const std::scoped_lock lk{pwc_mtx};
+					const std::scoped_lock lk{g_pwc_mtx};
 
-					const auto pw_iter = parallel_write_contexts.find(parallel_write_handle_iter->second);
-					if (pw_iter != std::end(parallel_write_contexts)) {
+					const auto pw_iter = g_parallel_write_contexts.find(parallel_write_handle_iter->second);
+					if (pw_iter != std::end(g_parallel_write_contexts)) {
 						logging::trace(
 							*_sess_ptr, "{}: Closing secondary output streams. Skipping catalog update.", fn);
 
@@ -3272,13 +3272,13 @@ namespace irods::http::endpoint_operation
 					__func__,
 					parallel_write_handle_iter->value());
 
-				decltype(parallel_write_contexts)::iterator iter;
+				decltype(g_parallel_write_contexts)::iterator iter;
 
 				{
-					const std::shared_lock lk{pwc_mtx};
+					const std::shared_lock lk{g_pwc_mtx};
 
-					iter = parallel_write_contexts.find(parallel_write_handle_iter->value());
-					if (iter == std::end(parallel_write_contexts)) {
+					iter = g_parallel_write_contexts.find(parallel_write_handle_iter->value());
+					if (iter == std::end(g_parallel_write_contexts)) {
 						logging::error(*_sess_ptr, "{}: Invalid handle for parallel write.", __func__);
 						return _sess_ptr->send(irods::http::fail(res, ::http::status::bad_request));
 					}
