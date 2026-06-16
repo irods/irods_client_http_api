@@ -14,6 +14,17 @@ import sys
 import time
 import unittest
 
+# Returns the given error code if the test configuration indicates that
+# dstream exposes iRODS error codes. Otherwise, the generic error code
+# (i.e. INVALID_HANDLE) is returned.
+#
+# The test configuration option should be enabled whenever the HTTP API is
+# compiled against the iRODS 5.1.0 development library or later.
+def identity_or_invalid_handle(irods_error_code):
+    if config.test_config.get('dstream_exposes_irods_error_codes', False):
+        return irods_error_code
+    return irods_error_codes.INVALID_HANDLE
+
 def setup_class(cls, opts):
     '''Initializes shared state needed by all test cases.
 
@@ -2099,16 +2110,12 @@ class test_data_objects_endpoint(unittest.TestCase):
             })
             self.logger.debug(r.content)
 
-    def test_write_operations_return_INVALID_HANDLE_on_bad_output_streams(self):
-        # The write operations that are invoked by this test rely on the fact that the
-        # dstream objects used by the HTTP API do NOT expose the underlying iRODS error
-        # codes.
-
+    def test_write_operations_return_irods_error_code_on_bad_output_streams(self):
         headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
         data_object = f'/{self.zone_name}/home/inaccessible_logical_path.txt'
 
         # Show that attempting to write data to an inaccessible logical path results
-        # in the generic iRODS error code. This invocation encodes the request as
+        # in an access permission error code. This invocation encodes the request as
         # application/x-www-form-urlencoded.
         r = requests.post(self.url_endpoint, headers=headers, data={
             'op': 'write',
@@ -2117,7 +2124,8 @@ class test_data_objects_endpoint(unittest.TestCase):
         })
         self.logger.debug(r.content)
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+        error_code = identity_or_invalid_handle(irods_error_codes.CAT_NO_ACCESS_PERMISSION)
+        self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
         # Do it again but this time, send the request as multipart/form-data.
         r = requests.post(self.url_endpoint, headers=headers, files={
@@ -2127,7 +2135,8 @@ class test_data_objects_endpoint(unittest.TestCase):
         })
         self.logger.debug(r.content)
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+        error_code = identity_or_invalid_handle(irods_error_codes.CAT_NO_ACCESS_PERMISSION)
+        self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
         # Now send the request using the header-based form of the write operation.
         r = requests.post(self.url_endpoint, headers={
@@ -2138,7 +2147,8 @@ class test_data_objects_endpoint(unittest.TestCase):
         }, data='ignored')
         self.logger.debug(r.content)
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+        error_code = identity_or_invalid_handle(irods_error_codes.CAT_NO_ACCESS_PERMISSION)
+        self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
         # Show that the result is the same when using the parallel_write_init operation.
         r = requests.post(self.url_endpoint, headers=headers, files={
@@ -2148,7 +2158,8 @@ class test_data_objects_endpoint(unittest.TestCase):
         })
         self.logger.debug(r.content)
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+        error_code = identity_or_invalid_handle(irods_error_codes.CAT_NO_ACCESS_PERMISSION)
+        self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
         # Stat the data object to show it doesn't exist.
         r = requests.get(self.url_endpoint, headers=headers, params={
@@ -2378,7 +2389,8 @@ class test_data_objects_endpoint(unittest.TestCase):
             })
             self.logger.debug(r.content)
             self.assertEqual(r.status_code, 200)
-            self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+            error_code = identity_or_invalid_handle(irods_error_codes.DIRECT_CHILD_ACCESS)
+            self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
             # Stat the data object to show it doesn't exist.
             r = requests.get(self.url_endpoint, headers=rodsuser_headers, params={
@@ -2606,7 +2618,8 @@ class test_data_objects_endpoint(unittest.TestCase):
                 self.logger.debug(r.content)
                 self.assertEqual(r.status_code, 200)
                 result = r.json()
-                self.assertEqual(result['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+                error_code = identity_or_invalid_handle(irods_error_codes.SYS_REPLICA_DOES_NOT_EXIST)
+                self.assertEqual(result['irods_response']['status_code'], error_code)
 
         finally:
             # Remove the data object.
@@ -3280,7 +3293,8 @@ class test_data_objects_endpoint(unittest.TestCase):
             })
             self.logger.debug(r.content)
             self.assertEqual(r.status_code, 200)
-            self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+            error_code = identity_or_invalid_handle(irods_error_codes.HIERARCHY_ERROR)
+            self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
         finally:
             # End the parallel write in case something failed.
@@ -3314,7 +3328,8 @@ class test_data_objects_endpoint(unittest.TestCase):
         })
         self.logger.debug(r.content)
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+        error_code = identity_or_invalid_handle(irods_error_codes.CAT_NO_ACCESS_PERMISSION)
+        self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
     def test_parallel_write_init_operation_returns_an_error_when_stream_count_is_less_than_one(self):
         headers = {'Authorization': 'Bearer ' + self.rodsuser_bearer_token}
@@ -3734,7 +3749,8 @@ class test_data_objects_endpoint(unittest.TestCase):
                 })
                 self.logger.debug(r.content)
                 self.assertEqual(r.status_code, 200)
-                self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+                error_code = identity_or_invalid_handle(irods_error_codes.SYS_REPLICA_DOES_NOT_EXIST)
+                self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
                 r = requests.post(self.url_endpoint, headers=rodsuser_headers, files={
                     'op': 'write',
@@ -3744,7 +3760,8 @@ class test_data_objects_endpoint(unittest.TestCase):
                 })
                 self.logger.debug(r.content)
                 self.assertEqual(r.status_code, 200)
-                self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+                error_code = identity_or_invalid_handle(irods_error_codes.SYS_REPLICA_DOES_NOT_EXIST)
+                self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
                 r = requests.post(self.url_endpoint, headers={
                     'Authorization': rodsuser_headers['Authorization'],
@@ -3755,7 +3772,8 @@ class test_data_objects_endpoint(unittest.TestCase):
                 }, data=data)
                 self.logger.debug(r.content)
                 self.assertEqual(r.status_code, 200)
-                self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+                error_code = identity_or_invalid_handle(irods_error_codes.SYS_REPLICA_DOES_NOT_EXIST)
+                self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
             with self.subTest('Writing to replica using invalid resource'):
                 data = 'bad resource'
@@ -3767,7 +3785,8 @@ class test_data_objects_endpoint(unittest.TestCase):
                 })
                 self.logger.debug(r.content)
                 self.assertEqual(r.status_code, 200)
-                self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+                error_code = identity_or_invalid_handle(irods_error_codes.SYS_RESC_DOES_NOT_EXIST)
+                self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
                 r = requests.post(self.url_endpoint, headers=rodsuser_headers, files={
                     'op': 'write',
@@ -3777,7 +3796,8 @@ class test_data_objects_endpoint(unittest.TestCase):
                 })
                 self.logger.debug(r.content)
                 self.assertEqual(r.status_code, 200)
-                self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+                error_code = identity_or_invalid_handle(irods_error_codes.SYS_RESC_DOES_NOT_EXIST)
+                self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
                 r = requests.post(self.url_endpoint, headers={
                     'Authorization': rodsuser_headers['Authorization'],
@@ -3788,7 +3808,8 @@ class test_data_objects_endpoint(unittest.TestCase):
                 }, data=data)
                 self.logger.debug(r.content)
                 self.assertEqual(r.status_code, 200)
-                self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.INVALID_HANDLE)
+                error_code = identity_or_invalid_handle(irods_error_codes.SYS_RESC_DOES_NOT_EXIST)
+                self.assertEqual(r.json()['irods_response']['status_code'], error_code)
 
             with self.subTest('Reading from replica using non-integer string as replica number'):
                 r = requests.get(self.url_endpoint, headers=rodsuser_headers, params={

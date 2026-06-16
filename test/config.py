@@ -25,7 +25,11 @@ test_config = {
     'irods_zone': 'tempZone',
     'irods_server_hostname': 'localhost',
 
-    'run_genquery2_tests': True
+    'run_genquery2_tests': True,
+
+    # Enable this configuration option if the HTTP API is compiled
+    # against the iRODS 5.1.0 development library or later.
+    'dstream_exposes_irods_error_codes': False
 }
 
 schema = {
