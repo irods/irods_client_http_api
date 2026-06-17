@@ -564,8 +564,8 @@ auto print_configuration_template() -> void
 
         "max_number_of_parallel_write_streams": 3,
 
-        "max_number_of_bytes_per_read_operation": 8192,
-        "max_number_of_bytes_per_write_operation": 8192,
+        "max_number_of_bytes_per_read_operation": 1048576,
+        "max_number_of_bytes_per_write_operation": 1048576,
 
         "max_number_of_rows_per_catalog_query": 15
     }}
