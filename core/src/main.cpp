@@ -618,7 +618,7 @@ Options:
 	print_version_info();
 } // print_usage
 
-auto is_valid_configuration(const std::string& _schema_path, const std::string& _config_path) -> bool
+auto config_meets_jsonschema_requirements(const std::string& _schema_path, const std::string& _config_path) -> bool
 {
 	try {
 		fmt::print("Validating configuration file ...\n");
@@ -671,7 +671,29 @@ auto is_valid_configuration(const std::string& _schema_path, const std::string& 
 	}
 
 	return false;
-} // is_valid_configuration
+} // config_meets_jsonschema_requirements
+
+auto config_meets_post_jsonschema_validation_requirements(const json& _config) -> bool
+{
+	bool valid = true;
+
+	{
+		const auto max_streams =
+			_config.at(json::json_pointer{"/irods_client/max_number_of_parallel_write_streams"}).get<int>();
+		const auto max_streams_per_handle =
+			_config.at(json::json_pointer{"/irods_client/max_number_of_streams_per_parallel_write_handle"}).get<int>();
+		if (max_streams_per_handle > max_streams) {
+			logging::error(
+				"[max_number_of_parallel_write_streams] is greater than "
+				"[max_number_of_streams_per_parallel_write_handle]: {} > {}",
+				max_streams_per_handle,
+				max_streams);
+			valid = false;
+		}
+	}
+
+	return valid;
+} // config_meets_post_jsonschema_validation_requirements
 
 auto set_ips_display_name(const json& _config) -> void
 {
@@ -1023,7 +1045,7 @@ auto main(int _argc, char* _argv[]) -> int
 
 		{
 			const auto schema_file = (vm.count("jsonschema-file") > 0) ? vm["jsonschema-file"].as<std::string>() : "";
-			if (!is_valid_configuration(schema_file, vm["config-file"].as<std::string>())) {
+			if (!config_meets_jsonschema_requirements(schema_file, vm["config-file"].as<std::string>())) {
 				return 1;
 			}
 		}
@@ -1033,6 +1055,10 @@ auto main(int _argc, char* _argv[]) -> int
 		spdlog::set_pattern("[%Y-%m-%d %T.%e] [P:%P] [%^%l%$] [T:%t] %v");
 
 		logging::info("Initializing server.");
+
+		if (!config_meets_post_jsonschema_validation_requirements(config)) {
+			return 1;
+		}
 
 		// Confirm OIDC endpoint is valid (Assume all provide endpoint)
 		logging::trace("Verifying OIDC endpoint configuration");
