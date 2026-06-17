@@ -949,15 +949,15 @@ When sending large amounts of data or writing in parallel, multipart/form-data (
 ```bash
 curl http://localhost:<port>/irods-http-api/<version>/data-objects \
     -H 'Authorization: Bearer <token>' \
-    -H 'irods-api-request-op=write' \
-    -H 'irods-api-request-lpath=<string>' \ # Absolute logical path to a data object.
-    -H 'irods-api-request-resource=<string>' \ # The root resource holding the replica to write to. Optional.
-    -H 'irods-api-request-replica-number=<integer>' \ # The replica number of the replica to write to. Should not be negative if specified. Optional.
-    -H 'irods-api-request-offset=<integer>' \ # Number of bytes to skip. Defaults to 0. Optional.
-    -H 'irods-api-request-truncate=<integer>' \ # 0 or 1. Defaults to 1. Truncates the data object before writing. Optional.
-    -H 'irods-api-request-append=<integer>' \ # 0 or 1. Defaults to 0. Appends the bytes to the data object. Optional.
-    -H 'irods-api-request-parallel-write-handle=<string>' \ # The handle to use when writing in parallel. Optional.
-    -H 'irods-api-request-stream-index=<integer>' \ # The stream to use when writing in parallel. Optional.
+    -H 'irods-api-request-op: write' \
+    -H 'irods-api-request-lpath: <string>' \ # Absolute logical path to a data object.
+    -H 'irods-api-request-resource: <string>' \ # The root resource holding the replica to write to. Optional.
+    -H 'irods-api-request-replica-number: <integer>' \ # The replica number of the replica to write to. Should not be negative if specified. Optional.
+    -H 'irods-api-request-offset: <integer>' \ # Number of bytes to skip. Defaults to 0. Optional.
+    -H 'irods-api-request-truncate: <integer>' \ # 0 or 1. Defaults to 1. Truncates the data object before writing. Optional.
+    -H 'irods-api-request-append: <integer>' \ # 0 or 1. Defaults to 0. Appends the bytes to the data object. Optional.
+    -H 'irods-api-request-parallel-write-handle: <string>' \ # The handle to use when writing in parallel. Optional.
+    -H 'irods-api-request-stream-index: <integer>' \ # The stream to use when writing in parallel. Optional.
     --data-binary '<bytes>' # The bytes to write.
 ```
 
