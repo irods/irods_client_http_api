@@ -268,7 +268,6 @@ Notice how some of the configuration values are wrapped in angle brackets (e.g. 
                 "client_id": "irods_http_api",
 
                 // The client secret used for accessing the introspection endpoint.
-                // Optional unless running as a protected resource.
                 "client_secret": "xxxxxxxxxxxxxxx",
 
                 // The secret used when validating a JWT signed with
