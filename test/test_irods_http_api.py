@@ -4150,6 +4150,35 @@ class test_data_objects_endpoint(unittest.TestCase):
                 })
                 self.logger.debug(r.content)
 
+    def test_parallel_write_init_returns_an_error_if_stream_count_exceeds_per_parallel_write_handle_limit(self):
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+
+        # Get the max number of streams allowed for a single parallel-write-handle.
+        r = requests.get(f'{self.url_base}/info', headers=rodsuser_headers)
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+        stream_count_limit = r.json()['max_number_of_streams_per_parallel_write_handle']
+
+        # Show that requesting more streams than the HTTP API is configured to
+        # allow results in an error.
+        data_object = f'/{self.zone_name}/home/{self.rodsuser_username}/stream_count_exceeds_limit.txt'
+        r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+            'op': 'parallel_write_init',
+            'lpath': data_object,
+            'stream-count': stream_count_limit + 1
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 400)
+
+        # Show the data object does not exist.
+        r = requests.get(self.url_endpoint, headers=rodsuser_headers, params={
+            'op': 'stat',
+            'lpath': data_object
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.NOT_A_DATA_OBJECT)
+
 class test_information_endpoint(unittest.TestCase):
 
     @classmethod
