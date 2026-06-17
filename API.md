@@ -564,7 +564,8 @@ curl http://localhost:<port>/irods-http-api/<version>/data-objects \
 
 `catalog-only` and `no-trash` are mutually exclusive parameters. Setting both to 1 will result in an error.
 
-`catalog-only` requires rodsadmin level privileges. This requirement can be relaxed by adjusting the iRODS server's policy.
+> [!WARNING]
+> `catalog-only` requires rodsadmin level privileges. This requirement can be relaxed by adjusting the iRODS server's policy.
 
 #### Response
 
@@ -847,7 +848,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Registers a new data object and/or replica into the catalog.
 
-This operation may require rodsadmin level privileges depending on the configuration of the iRODS zone. Contact the administrator of the iRODS zone to be sure non-rodsadmin users are allowed to execute this operation.
+> [!WARNING]
+> This operation may require rodsadmin level privileges depending on the configuration of the iRODS zone. Contact the administrator of the iRODS zone to be sure non-rodsadmin users are allowed to execute this operation.
 
 #### Request
 
@@ -1420,7 +1422,8 @@ curl http://localhost:<port>/irods-http-api/<version>/query \
 
 Adds a SpecificQuery to the iRODS zone.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -1451,7 +1454,8 @@ If an HTTP status code of 200 is returned, the body of the response will contain
 
 Removes a SpecificQuery from the iRODS zone.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -1483,7 +1487,8 @@ If an HTTP status code of 200 is returned, the body of the response will contain
 
 Creates a new resource.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -1519,7 +1524,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Removes a resource.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -1551,7 +1557,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Modifies a single property of a resource.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -1598,7 +1605,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Creates a parent-child relationship between two resources.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -1632,7 +1640,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Removes the parent-child relationship between two resources.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -1665,7 +1674,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Rebalances a resource hierarchy.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -1748,7 +1758,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Adjust multiple AVUs on a resource.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -1990,7 +2001,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Creates a new user.
 
-This operation requires rodsadmin or groupadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin or groupadmin level privileges.
 
 #### Request
 
@@ -2024,7 +2036,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Removes a user.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -2057,7 +2070,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Changes a user's password.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -2091,7 +2105,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Changes a user's type.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -2125,7 +2140,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Creates a new group.
 
-This operation requires rodsadmin or groupadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin or groupadmin level privileges.
 
 #### Request
 
@@ -2157,7 +2173,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Removes a group.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -2189,7 +2206,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Adds a user to a group.
 
-This operation requires rodsadmin or groupadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin or groupadmin level privileges.
 
 Users of type groupadmin are allowed to execute this operation if at least one of the following conditions is true:
 - The target group is initially empty
@@ -2229,7 +2247,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Removes a user from a group.
 
-This operation requires rodsadmin or groupadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin or groupadmin level privileges.
 
 If the user is of type groupadmin, they must be a member of the target group to execute this operation.
 
@@ -2265,7 +2284,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Lists all users in the zone.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -2305,7 +2325,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Lists all groups in the zone.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -2412,7 +2433,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Adjust multiple AVUs on a user or group.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -2481,7 +2503,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Adds a remote zone to the local zone.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -2517,7 +2540,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Removes a remote zone from the local zone.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -2549,7 +2573,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Modifies properties of a remote zone.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
@@ -2629,7 +2654,8 @@ If there was an error, expect an HTTP status code in either the 4XX or 5XX range
 
 Returns information about the iRODS zone.
 
-This operation requires rodsadmin level privileges.
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
 
 #### Request
 
