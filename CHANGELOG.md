@@ -11,6 +11,38 @@ and this project **only** adheres to the following _(as defined at [Semantic Ver
 > - MINOR version when you add functionality in a backward compatible manner
 > - PATCH version when you make backward compatible bug fixes
 
+## [0.7.0] - 2026-06-18
+
+> [!IMPORTANT]
+> This release re-purposes the configuration property `max_number_of_parallel_write_streams`. Please review your HTTP API configuration file and update accordingly.
+
+This release addresses bugs related to unexpected server termination, parallel-write streams, and unnecessary expansion of group permissions.
+
+The implementation includes support for reporting more detailed iRODS error codes for write operations. If compiled against the iRODS 5.0.2 development package or earlier, the server will operate as before and return the generic iRODS error code `INVALID_HANDLE`.
+
+### Changed
+
+- Re-purpose configuration property for limiting total number of parallel-write streams across all clients (#79, #484).
+- Enforce post JSON schema validation requirements (#79, #484).
+- Include iRODS server version in response from /info endpoint for authenticated HTTP requests (#440).
+- Include `parent_context` in resource stat output (#473).
+- Return iRODS error codes for write operations (#479).
+- Increase default buffer size for read/write operations to 1 MiB (#483).
+- Rename `expiry` parameter for `modify_replica` operation (#494).
+
+### Fixed
+
+- Fix server termination on invalid rule syntax (#313, #477).
+- Fix server termination on attempts to log IP address of closed socket (#332).
+- Fix unnecessary expansion of group permissions (#476).
+- Fix requirements for `stream-count` parameter of `parallel_write_init` operation (#482).
+- Fix over allocation of streams on calls to `parallel_write_init` operation (#489).
+
+### Added
+
+- Add configuration property for limiting total number of streams per parallel-write handle (#79, #484).
+- Add configuration property for changing `ips` display name (#470).
+
 ## [0.6.0] - 2025-08-22
 
 This release makes the HTTP API compatible with iRODS 5, improves compatibility with earlier versions of iRODS, expands support for targeting replicas for I/O operations, and improves write performance to data objects.
