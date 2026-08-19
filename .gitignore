@@ -31,5 +31,8 @@
 *.out
 *.app
 
-# Derived files
+# Miscellaneous directories and files
 compile_commands.json
+.cache/
+*.swp
+*.vim
