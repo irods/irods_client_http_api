@@ -4542,6 +4542,252 @@ class test_query_endpoint(unittest.TestCase):
     def test_server_reports_error_when_op_is_not_supported(self):
         do_test_server_reports_error_when_op_is_not_supported(self)
 
+class test_logical_quotas_endpoint(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        setup_class(cls, {'endpoint_name': 'logical-quotas'})
+
+    @classmethod
+    def tearDownClass(cls):
+        tear_down_class(cls)
+
+    def setUp(self):
+        self.assertFalse(self._class_init_error, 'Class initialization failed. Cannot continue.')
+
+    def test_core_functionality(self):
+        if not config.test_config.get('run_logical_quota_tests', False):
+            self.skipTest('Logical Quota tests not enabled. Check [run_logical_quota_tests] in test configuration file.')
+
+        rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+
+        zone_collection = f'/{self.zone_name}'
+        rodsuser_collection = f'/{self.zone_name}/home/{self.rodsuser_username}'
+        data_object_a = f'/{self.zone_name}/home/{self.rodsuser_username}/data_object_a.txt'
+        data_object_b = f'/{self.zone_name}/home/{self.rodsuser_username}/data_object_b.txt'
+
+        try:
+            # Set quotas on two collections. One on the zone collection and another
+            # on a non-rodsadmin user's collection.
+            zone_coll_max_bytes = 20
+            zone_coll_max_objects = 4
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'set_quota',
+                'lpath': zone_collection,
+                'maximum-bytes': zone_coll_max_bytes,
+                'maximum-objects': zone_coll_max_objects
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            rodsuser_coll_max_bytes = 10
+            rodsuser_coll_max_objects = 2
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'set_quota',
+                'lpath': rodsuser_collection,
+                'maximum-bytes': rodsuser_coll_max_bytes,
+                'maximum-objects': rodsuser_coll_max_objects
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the quota information for the target collection and its ancestors.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat',
+                'lpath': rodsuser_collection
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(len(result['quotas']), 2)
+
+            zone_coll_quota_info = {
+                'collection': zone_collection,
+                'maximum_bytes': zone_coll_max_bytes,
+                'maximum_objects': zone_coll_max_objects,
+                'over_bytes': -zone_coll_max_bytes,
+                'over_objects': -zone_coll_max_objects
+            }
+            self.assertIn(zone_coll_quota_info, result['quotas'])
+
+            rodsuser_coll_quota_info = {
+                'collection': rodsuser_collection,
+                'maximum_bytes': rodsuser_coll_max_bytes,
+                'maximum_objects': rodsuser_coll_max_objects,
+                'over_bytes': -rodsuser_coll_max_bytes,
+                'over_objects': -rodsuser_coll_max_objects
+            }
+            self.assertIn(rodsuser_coll_quota_info, result['quotas'])
+
+            # Create a data object which does not violate the quota limit.
+            content_a = '12345'
+            r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                'op': 'write',
+                'lpath': data_object_a,
+                'bytes': content_a
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Recalculate the quotas.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'recalculate'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the quotas.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat',
+                'lpath': rodsuser_collection
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(len(result['quotas']), 2)
+
+            zone_coll_quota_info = {
+                'collection': zone_collection,
+                'maximum_bytes': zone_coll_max_bytes,
+                'maximum_objects': zone_coll_max_objects,
+                'over_bytes': -zone_coll_max_bytes + len(content_a),
+                'over_objects': -zone_coll_max_objects + 1
+            }
+            self.assertIn(zone_coll_quota_info, result['quotas'])
+
+            rodsuser_coll_quota_info = {
+                'collection': rodsuser_collection,
+                'maximum_bytes': rodsuser_coll_max_bytes,
+                'maximum_objects': rodsuser_coll_max_objects,
+                'over_bytes': -rodsuser_coll_max_bytes + len(content_a),
+                'over_objects': -rodsuser_coll_max_objects + 1
+            }
+            self.assertIn(rodsuser_coll_quota_info, result['quotas'])
+
+            # Create another data object and write enough bytes to it to trigger
+            # a quota violation.
+            content_b = 'X' * 50
+            r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                'op': 'write',
+                'lpath': data_object_b,
+                'bytes': content_b
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Recalculate the quotas so they are in violation.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'recalculate'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the quotas.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat',
+                'lpath': rodsuser_collection
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(len(result['quotas']), 2)
+
+            zone_coll_quota_info = {
+                'collection': zone_collection,
+                'maximum_bytes': zone_coll_max_bytes,
+                'maximum_objects': zone_coll_max_objects,
+                'over_bytes': -zone_coll_max_bytes + len(content_a) + len(content_b),
+                'over_objects': -zone_coll_max_objects + 2
+            }
+            self.assertIn(zone_coll_quota_info, result['quotas'])
+
+            rodsuser_coll_quota_info = {
+                'collection': rodsuser_collection,
+                'maximum_bytes': rodsuser_coll_max_bytes,
+                'maximum_objects': rodsuser_coll_max_objects,
+                'over_bytes': -rodsuser_coll_max_bytes + len(content_a) + len(content_b),
+                'over_objects': -rodsuser_coll_max_objects + 2
+            }
+            self.assertIn(rodsuser_coll_quota_info, result['quotas'])
+
+            # Show that attempting to create a third data object fails due
+            # to the quota being in violation.
+            r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                'op': 'touch',
+                'lpath': data_object_b + '.nope'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.LOGICAL_QUOTA_EXCEEDED)
+
+            # Show that attempting to write bytes to an existing data object
+            # also fails due to the quota being in violation.
+            r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                'op': 'write',
+                'lpath': data_object_b,
+                'bytes': 'nope'
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], irods_error_codes.LOGICAL_QUOTA_EXCEEDED)
+
+        finally:
+            # Remove the data objects.
+            for dobj in [data_object_a, data_object_b]:
+                r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
+                    'op': 'remove',
+                    'lpath': dobj,
+                    'catalog-only': 0,
+                    'no-trash': 1
+                })
+                self.logger.debug(r.content)
+
+            # Recalculate the quotas.
+            r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                'op': 'recalculate'
+            })
+            self.logger.debug(r.content)
+
+            # Show the quotas.
+            r = requests.get(self.url_endpoint, headers=rodsadmin_headers, params={
+                'op': 'stat',
+                'lpath': rodsuser_collection
+            })
+            self.logger.debug(r.content)
+
+            # Remove the quotas.
+            for coll in [zone_collection, rodsuser_collection]:
+                r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+                    'op': 'set_quota',
+                    'lpath': coll,
+                    'maximum-bytes': 0,
+                    'maximum-objects': 0
+                })
+                self.logger.debug(r.content)
+
+    def test_server_returns_an_error_when_maximum_quota_parameters_are_missing(self):
+        if not config.test_config.get('run_logical_quota_tests', False):
+            self.skipTest('Physical Quota tests not enabled. Check [run_logical_quota_tests] in test configuration file.')
+
+        rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
+
+        r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
+            'op': 'set_quota',
+            'lpath': 'ignored'
+        })
+        self.logger.debug(r.content)
+        self.assertEqual(r.status_code, 400)
+
 class test_physical_quotas_endpoint(unittest.TestCase):
     # TODO(irods/irods#8624): Update this comment once iRODS moves configuration of
     # physical quotas into the catalog.

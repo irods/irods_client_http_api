@@ -33,7 +33,12 @@ test_config = {
 
     # Requires that physical quotas be enabled on the iRODS server.
     # See documentation for msiSetRescQuotaPolicy() to learn more.
-    'run_physical_quota_tests': False
+    'run_physical_quota_tests': False,
+
+    # Requires that logical quotas be enabled in the zone. Visit
+    # docs.irods.org to learn more about the built-in logical quotas
+    # system.
+    'run_logical_quota_tests': False
 }
 
 schema = {

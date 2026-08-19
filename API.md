@@ -1611,6 +1611,131 @@ If an HTTP status code of 200 is returned, the body of the response will contain
 
 If there was an error, expect an HTTP status code in either the 4XX or 5XX range.
 
+## Logical Quota Operations
+
+### stat
+
+Returns quota information for one or more collections.
+
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
+
+#### Request
+
+HTTP Method: GET
+
+```bash
+curl http://localhost:<port>/irods-http-api/<version>/logical-quotas \
+    -H 'Authorization: Bearer <token>' \
+    --data-urlencode 'op=stat' \
+    --data-urlencode 'lpath=<string>' \ # Absolute logical path to a collection. Optional.
+    -G
+```
+
+If `lpath` points to a valid collection, the HTTP API will return quota information for that collection and all its ancestors.
+
+If a target collection is not provided via the `lpath` parameter, the HTTP API will return quota information for all collections in the zone.
+
+#### Response
+
+If an HTTP status code of 200 is returned, the body of the response will contain JSON. Its structure is shown below.
+
+```js
+{
+    "irods_response": {
+        "status_code": 0
+        "status_message": "string" // Optional
+    },
+    "quotas": [
+        {
+            "collection": "string",
+            "maximum_bytes": 0,
+            "maximum_objects": 0,
+            "over_bytes": 0,
+            "over_objects": 0
+        },
+
+        // Additional entries ...
+    ]
+}
+```
+
+If there was an error, expect an HTTP status code in either the 4XX or 5XX range.
+
+### set_quota
+
+Sets the quota for a collection.
+
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
+
+#### Request
+
+HTTP Method: POST
+
+```bash
+curl http://localhost:<port>/irods-http-api/<version>/logical-quotas \
+    -H 'Authorization: Bearer <token>' \
+    --data-urlencode 'op=set_quota' \
+    --data-urlencode 'lpath=<string>' \ # Absolute logical path to the collection which the quota applies.
+    --data-urlencode 'maximum-bytes=<integer>' \ # The total number of bytes that can be stored in the collection. Optional.
+    --data-urlencode 'maximum-objects=<integer>' # The total number of data objects that can be stored in the collection. Optional.
+```
+
+`maximum-bytes` and/or `maximum-objects` MUST be provided for this operation to succeed.
+
+To remove a quota, set both `maximum-bytes` and `maximum-objects` to 0.
+
+#### Response
+
+If an HTTP status code of 200 is returned, the body of the response will contain JSON. Its structure is shown below.
+
+```js
+{
+    "irods_response": {
+        "status_code": 0
+        "status_message": "string" // Optional
+    }
+}
+```
+
+If there was an error, expect an HTTP status code in either the 4XX or 5XX range.
+
+### recalculate
+
+Calculate or update quota information based on the state of the catalog.
+
+> [!WARNING]
+> This operation requires rodsadmin level privileges.
+
+> [!IMPORTANT]
+> iRODS does not automatically update quota information as data changes. This operation is provided to give administrators control over how frequently totals are calculated.
+
+#### Request
+
+HTTP Method: POST
+
+```bash
+curl http://localhost:<port>/irods-http-api/<version>/logical-quotas \
+    -H 'Authorization: Bearer <token>' \
+    --data-urlencode 'op=recalculate'
+```
+
+#### Response
+
+If an HTTP status code of 200 is returned, the body of the response will contain JSON. Its structure is shown below.
+
+```js
+{
+    "irods_response": {
+        "status_code": 0
+        "status_message": "string" // Optional
+    }
+}
+```
+
+If there was an error, expect an HTTP status code in either the 4XX or 5XX range.
+
 ## Resource Operations
 
 ### create
