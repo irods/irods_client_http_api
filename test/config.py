@@ -50,7 +50,10 @@ schema = {
             'type': 'object',
             'properties': {
                 'mode': {
-                    'enum': [ 'client', 'protected_resource' ]
+                    'enum': [
+                        'client',
+                        'protected_resource'
+                    ]
                 }
             },
             'required': [ 'mode' ]
@@ -93,7 +96,10 @@ schema = {
                     'type': 'string'
                 }
             },
-            'required': [ 'username', 'password' ]
+            'required': [
+                'username',
+                'password'
+            ]
         }
     }
 }
