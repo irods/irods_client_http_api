@@ -117,8 +117,8 @@ namespace irods::http
 		return encoded_data;
 	} // encode
 
-	// TODO Create a better name.
-	auto to_argument_list(const std::string_view _urlencoded_string) -> std::unordered_map<std::string, std::string>
+	auto parse_urlencoded_data(const std::string_view _urlencoded_string)
+		-> std::unordered_map<std::string, std::string>
 	{
 		if (_urlencoded_string.empty()) {
 			return {};
@@ -129,25 +129,37 @@ namespace irods::http
 		std::vector<std::string> tokens;
 		boost::split(tokens, _urlencoded_string, boost::is_any_of("&"));
 
-		std::vector<std::string> kvp;
-
 		for (auto&& t : tokens) {
-			boost::split(kvp, t, boost::is_any_of("="));
+			if (t.empty()) {
+				continue;
+			}
 
-			if (kvp.size() == 2) {
-				auto value = decode(kvp[1]);
+			std::string name;
+			std::string value;
+
+			if (const auto pos = t.find('='); pos != std::string::npos) {
+				name = t.substr(0, pos);
+				value = t.substr(pos + 1);
+			}
+			else {
+				name = t;
+			}
+
+			if (!name.empty()) {
+				boost::replace_all(name, "+", " ");
+				name = decode(name);
+			}
+
+			if (!value.empty()) {
 				boost::replace_all(value, "+", " ");
-				kvps.insert_or_assign(std::move(kvp[0]), value);
-			}
-			else if (kvp.size() == 1) {
-				kvps.insert_or_assign(std::move(kvp[0]), "");
+				value = decode(value);
 			}
 
-			kvp.clear();
+			kvps.insert_or_assign(std::move(name), std::move(value));
 		}
 
 		return kvps;
-	} // to_argument_list
+	} // parse_urlencoded_data
 
 	auto get_url_path(const std::string& _url) -> std::optional<std::string>
 	{
@@ -433,7 +445,7 @@ namespace irods::http
 				args = irods::http::parse_multipart_form_data(*boundary, _req.body());
 			}
 			else if (boost::istarts_with(content_type, "application/x-www-form-urlencoded")) {
-				args = irods::http::to_argument_list(_req.body());
+				args = irods::http::parse_urlencoded_data(_req.body());
 			}
 			else {
 				logging::error("{}: Content type [{}] not supported.", __func__, content_type);

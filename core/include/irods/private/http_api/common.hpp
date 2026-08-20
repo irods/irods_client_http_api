@@ -151,8 +151,9 @@ namespace irods::http
 
 	auto encode(std::string_view _to_encode) -> std::string;
 
-	// TODO Create a better name.
-	auto to_argument_list(const std::string_view _urlencoded_string) -> std::unordered_map<std::string, std::string>;
+	// Implements the algorithm at https://url.spec.whatwg.org/?utm_source=chatgpt.com#urlencoded-parsing.
+	auto parse_urlencoded_data(const std::string_view _urlencoded_string)
+		-> std::unordered_map<std::string, std::string>;
 
 	auto get_url_path(const std::string& _url) -> std::optional<std::string>;
 
