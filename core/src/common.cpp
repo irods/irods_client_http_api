@@ -30,6 +30,7 @@
 #include <boost/asio.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/beast.hpp>
+#include <boost/url.hpp>
 
 #include <curl/curl.h>
 #include <fmt/format.h>
@@ -180,63 +181,29 @@ namespace irods::http
 		return std::nullopt;
 	} // get_url_path
 
-	auto parse_url(const std::string& _url) -> url
+	auto parse_url(const request_type& _req) -> url
 	{
 		namespace logging = irods::http::log;
 
-		std::unique_ptr<CURLU, void (*)(CURLU*)> curl{curl_url(), curl_url_cleanup};
-
-		if (!curl) {
-			logging::error("{}: Could not initialize CURLU handle.", __func__);
-			THROW(SYS_LIBRARY_ERROR, "curl_url error.");
-		}
-
-		// Include a bogus prefix. We only care about the path and query parts of the URL.
-		if (const auto ec = curl_url_set(curl.get(), CURLUPART_URL, _url.c_str(), 0); ec) {
-			logging::error("{}: curl_url_set error: {}", __func__, ec);
-			THROW(SYS_LIBRARY_ERROR, "curl_url_set(CURLUPART_URL) error.");
-		}
-
 		url url;
 
-		using curl_string = std::unique_ptr<char, void (*)(void*)>;
-
-		// Extract the path.
-		// This is what we use to route requests to the various endpoints.
-		char* path{};
-		if (const auto ec = curl_url_get(curl.get(), CURLUPART_PATH, &path, 0); ec == 0) {
-			curl_string cpath{path, curl_free};
-			if (path) {
-				url.path = path;
-			}
-		}
-		else {
-			logging::error("{}: curl_url_get(CURLUPART_PATH) error: {}", __func__, ec);
-			THROW(SYS_LIBRARY_ERROR, "curl_url_get(CURLUPART_PATH) error.");
+		auto parse_result = boost::urls::parse_origin_form(_req.target());
+		if (!parse_result) {
+			const auto& ec = parse_result.error();
+			logging::error("{}: Could not parse URL path [{}]: {}", __func__, _req.target(), ec.message());
+			THROW(SYS_LIBRARY_ERROR, "URL parse error");
 		}
 
-		// Extract the query.
-		// ChatGPT states that the values in the key value pairs must escape embedded equal signs.
-		// This allows the HTTP server to parse the query string correctly. Therefore, we don't have
-		// to protect against that case. The client must send the correct URL escaped input.
-		char* query{};
-		if (const auto ec = curl_url_get(curl.get(), CURLUPART_QUERY, &query, 0); ec == 0) {
-			curl_string cs{query, curl_free};
-			if (query) {
-				url.query = to_argument_list(query);
-			}
-		}
-		else {
-			logging::error("{}: curl_url_get(CURLUPART_QUERY) error: {}", __func__, ec);
-			THROW(SYS_LIBRARY_ERROR, "curl_url_get(CURLUPART_QUERY) error.");
+		// Extract the path. This is what we use to route requests to the various endpoints.
+		auto uv = *parse_result;
+		url.path = uv.encoded_path();
+
+		// Extract the query and create a mapping of key-value pairs.
+		for (auto&& p : uv.params()) {
+			url.query.insert_or_assign(p.key, p.value);
 		}
 
 		return url;
-	} // parse_url
-
-	auto parse_url(const request_type& _req) -> url
-	{
-		return parse_url(fmt::format("http://ignored{}", _req.target()));
 	} // parse_url
 
 	auto url_encode_body(const body_arguments& _args) -> std::string
