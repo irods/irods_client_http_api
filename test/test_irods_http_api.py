@@ -733,6 +733,50 @@ class test_collections_endpoint(unittest.TestCase):
     def test_server_reports_error_when_op_is_not_supported(self):
         do_test_server_reports_error_when_op_is_not_supported(self)
 
+    def test_server_preserves_special_characters_in_application_x_www_form_urlencoded_content(self):
+        rodsuser_headers = {'Authorization': f'Bearer {self.rodsuser_bearer_token}'}
+
+        # This logical path fails for HTTP API 0.7.0 and earlier because the HTTP API
+        # does not implement the proper decoding logic. To verify correctness, this test
+        # includes the following characters: equals ("="), space (" "), plus ("+")
+        collection = f'/{self.zone_name}/home/{self.rodsuser_username}/= issue+478'
+
+        try:
+            # Create a collection.
+            r = requests.post(
+                self.url_endpoint,
+                headers={
+                    'Authorization': rodsuser_headers['Authorization'],
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                data={
+                    'op': 'create',
+                    'lpath': collection
+                }
+            )
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            self.assertEqual(r.json()['irods_response']['status_code'], 0)
+
+            # Show the special characters are preserved.
+            r = requests.get(f'{self.url_base}/query', headers=rodsuser_headers, params={
+                'op': 'execute_genquery',
+                'query': f"select COLL_NAME where COLL_NAME = '{collection}'"
+            })
+            self.logger.debug(r.content)
+            self.assertEqual(r.status_code, 200)
+            result = r.json()
+            self.assertEqual(result['irods_response']['status_code'], 0)
+            self.assertEqual(len(result['rows']), 1)
+            self.assertEqual(result['rows'][0][0], collection)
+
+        finally:
+            r = requests.post(self.url_endpoint, headers=rodsuser_headers, data={
+                'op': 'remove',
+                'lpath': collection
+            })
+            self.logger.debug(r.content)
+
     @unittest.skip('Test needs to be implemented.')
     def test_return_error_on_missing_parameters(self):
         pass
