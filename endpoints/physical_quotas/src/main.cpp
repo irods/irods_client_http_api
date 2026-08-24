@@ -119,8 +119,8 @@ namespace
 							resource_quotas.emplace_back(json{
 								{"group", std::move(row[0])},
 								{"resource", std::move(row[2])},
-								{"limit", std::stoll(row[3])},
-								{"over", std::stoll(row[4])},
+								{"maximum_bytes", std::stoll(row[3])},
+								{"over_bytes", std::stoll(row[4])},
 								{"modified_at", std::move(row[5])}});
 						}
 
@@ -132,8 +132,8 @@ namespace
 						for (auto&& row : irods::query{static_cast<RcComm*>(conn), global_quotas_query}) {
 							global_quotas.emplace_back(json{
 								{"group", std::move(row[0])},
-								{"limit", std::stoll(row[2])},
-								{"over", std::stoll(row[3])},
+								{"maximum_bytes", std::stoll(row[2])},
+								{"over_bytes", std::stoll(row[3])},
 								{"modified_at", std::move(row[4])}});
 						}
 					}
@@ -145,8 +145,8 @@ namespace
 							resource_quotas.emplace_back(json{
 								{"group", std::move(row[0])},
 								{"resource", std::move(row[2])},
-								{"limit", std::stoll(row[3])},
-								{"over", std::stoll(row[4])},
+								{"maximum_bytes", std::stoll(row[3])},
+								{"over_bytes", std::stoll(row[4])},
 								{"modified_at", std::move(row[5])}});
 						}
 
@@ -156,8 +156,8 @@ namespace
 						for (auto&& row : irods::query{static_cast<RcComm*>(conn), global_quotas_query}) {
 							global_quotas.emplace_back(json{
 								{"group", std::move(row[0])},
-								{"limit", std::stoll(row[2])},
-								{"over", std::stoll(row[3])},
+								{"maximum_bytes", std::stoll(row[2])},
+								{"over_bytes", std::stoll(row[3])},
 								{"modified_at", std::move(row[4])}});
 						}
 					}
@@ -218,20 +218,20 @@ namespace
 						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
 					}
 
-					const auto quota_iter = _args.find("quota");
+					const auto max_bytes_iter = _args.find("maximum-bytes");
 					if (group_iter == std::end(_args)) {
-						logging::error(*_sess_ptr, "{}: Missing [quota] parameter.", fn);
+						logging::error(*_sess_ptr, "{}: Missing [maximum-bytes] parameter.", fn);
 						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
 					}
 
 					try {
-						if (std::stoll(quota_iter->second) < 0) {
-							logging::error(*_sess_ptr, "{}: Value for [quota] parameter is less than 0.", fn);
+						if (std::stoll(max_bytes_iter->second) < 0) {
+							logging::error(*_sess_ptr, "{}: Value for [maximum-bytes] parameter is less than 0.", fn);
 							return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
 						}
 					}
 					catch (const std::exception& e) {
-						logging::error(*_sess_ptr, "{}: Invalid value for [quota] parameter: {}", fn, e.what());
+						logging::error(*_sess_ptr, "{}: Invalid value for [maximum-bytes] parameter: {}", fn, e.what());
 						return _sess_ptr->send(irods::http::fail(res, http::status::bad_request));
 					}
 
@@ -239,7 +239,7 @@ namespace
 					input.arg0 = "set-quota";
 					input.arg1 = "group";
 					input.arg2 = group_iter->second.c_str();
-					input.arg4 = quota_iter->second.c_str();
+					input.arg4 = max_bytes_iter->second.c_str();
 
 					// Apply the quota as a resource quota if the user set the resource parameter.
 					// Otherwise, apply it as a global quota across all resources.

@@ -1514,8 +1514,8 @@ If an HTTP status code of 200 is returned, the body of the response will contain
     "global_quotas": [
         {
             "group": "string",
-            "limit": 0,
-            "over": 0,
+            "maximum_bytes": 0,
+            "over_bytes": 0,
             "modified_at": "string"
         },
 
@@ -1525,8 +1525,8 @@ If an HTTP status code of 200 is returned, the body of the response will contain
         {
             "group": "string",
             "resource": "string",
-            "limit": 0,
-            "over": 0,
+            "maximum_bytes": 0,
+            "over_bytes": 0,
             "modified_at": "string"
         },
 
@@ -1554,12 +1554,12 @@ curl http://localhost:<port>/irods-http-api/<version>/physical-quotas \
     --data-urlencode 'op=set_group_quota' \
     --data-urlencode 'group=<string>' \ # The group to which the new quota applies.
     --data-urlencode 'resource=<string>' \ # The resource to which the new quota applies. Optional.
-    --data-urlencode 'quota=<integer>' # The number of bytes which will serve as the quota limit.
+    --data-urlencode 'maximum-bytes=<integer>' # The total number of bytes that can be stored by a group.
 ```
 
 If a target resource is not provided via the `resource` parameter, the quota will be treated as a global quota. Writing data to one or more resources will count towards the group quota.
 
-To remove a quota, set the quota limit to 0 (i.e. `quota=0`).
+To remove a quota, set `maximum-bytes` to 0.
 
 #### Response
 

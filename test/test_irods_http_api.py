@@ -4819,7 +4819,7 @@ class test_physical_quotas_endpoint(unittest.TestCase):
             'op': 'set_group_quota',
             'group': 'public',
             'resource': resource,
-            'quota': 10
+            'maximum-bytes': 10
         })
         self.logger.debug(r.content)
         self.assertEqual(r.status_code, 200)
@@ -4845,8 +4845,8 @@ class test_physical_quotas_endpoint(unittest.TestCase):
             self.assertEqual(r.status_code, 200)
             result = r.json()
             self.assertEqual(result['irods_response']['status_code'], 0)
-            self.assertEqual(result['resource_quotas'][0]['limit'], 10)
-            self.assertEqual(result['resource_quotas'][0]['over'], -10)
+            self.assertEqual(result['resource_quotas'][0]['maximum_bytes'], 10)
+            self.assertEqual(result['resource_quotas'][0]['over_bytes'], -10)
 
             # Create a data object which does not violate the quota limit.
             r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
@@ -4876,8 +4876,8 @@ class test_physical_quotas_endpoint(unittest.TestCase):
             self.assertEqual(r.status_code, 200)
             result = r.json()
             self.assertEqual(result['irods_response']['status_code'], 0)
-            self.assertEqual(result['resource_quotas'][0]['limit'], 10)
-            self.assertEqual(result['resource_quotas'][0]['over'], -8)
+            self.assertEqual(result['resource_quotas'][0]['maximum_bytes'], 10)
+            self.assertEqual(result['resource_quotas'][0]['over_bytes'], -8)
 
             # Overwrite the data object. This puts the quota in violation. Any attempts to
             # write to the data object will result in an error.
@@ -4939,7 +4939,7 @@ class test_physical_quotas_endpoint(unittest.TestCase):
                 'op': 'set_group_quota',
                 'group': 'public',
                 'resource': resource,
-                'quota': 0 
+                'maximum-bytes': 0 
             })
             self.logger.debug(r.content)
 
@@ -4954,7 +4954,7 @@ class test_physical_quotas_endpoint(unittest.TestCase):
         r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
             'op': 'set_group_quota',
             'group': 'public',
-            'quota': 10 
+            'maximum-bytes': 10 
         })
         self.logger.debug(r.content)
         self.assertEqual(r.status_code, 200)
@@ -4979,8 +4979,8 @@ class test_physical_quotas_endpoint(unittest.TestCase):
             self.assertEqual(r.status_code, 200)
             result = r.json()
             self.assertEqual(result['irods_response']['status_code'], 0)
-            self.assertEqual(result['global_quotas'][0]['limit'], 10)
-            self.assertEqual(result['global_quotas'][0]['over'], -10)
+            self.assertEqual(result['global_quotas'][0]['maximum_bytes'], 10)
+            self.assertEqual(result['global_quotas'][0]['over_bytes'], -10)
 
             # Create a data object which does not violate the quota limit.
             r = requests.post(f'{self.url_base}/data-objects', headers=rodsuser_headers, data={
@@ -5008,8 +5008,8 @@ class test_physical_quotas_endpoint(unittest.TestCase):
             self.assertEqual(r.status_code, 200)
             result = r.json()
             self.assertEqual(result['irods_response']['status_code'], 0)
-            self.assertEqual(result['global_quotas'][0]['limit'], 10)
-            self.assertEqual(result['global_quotas'][0]['over'], -8)
+            self.assertEqual(result['global_quotas'][0]['maximum_bytes'], 10)
+            self.assertEqual(result['global_quotas'][0]['over_bytes'], -8)
 
             # Overwrite the data object. This puts the quota in violation. Any attempts to
             # write to the data object will result in an error.
@@ -5067,7 +5067,7 @@ class test_physical_quotas_endpoint(unittest.TestCase):
             r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
                 'op': 'set_group_quota',
                 'group': 'public',
-                'quota': 0 
+                'maximum-bytes': 0 
             })
             self.logger.debug(r.content)
 
@@ -5080,7 +5080,7 @@ class test_physical_quotas_endpoint(unittest.TestCase):
         r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
             'op': 'set_group_quota',
             'group': 'does_not_exist',
-            'quota': 10 
+            'maximum-bytes': 10 
         })
         self.logger.debug(r.content)
         self.assertEqual(r.status_code, 200)
@@ -5096,7 +5096,7 @@ class test_physical_quotas_endpoint(unittest.TestCase):
             'op': 'set_group_quota',
             'group': 'public',
             'resource': 'does_not_exist',
-            'quota': 10 
+            'maximum-bytes': 10 
         })
         self.logger.debug(r.content)
         self.assertEqual(r.status_code, 200)
@@ -5119,7 +5119,7 @@ class test_physical_quotas_endpoint(unittest.TestCase):
                 r = requests.post(self.url_endpoint, headers=rodsadmin_headers, data={
                     'op': 'set_group_quota',
                     'group': 'public',
-                    'quota': v
+                    'maximum-bytes': v
                 })
                 self.logger.debug(r.content)
                 self.assertEqual(r.status_code, 400)
