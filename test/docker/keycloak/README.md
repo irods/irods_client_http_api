@@ -1,7 +1,7 @@
 # Testing support for OpenID Connect via Keycloak
 
 Provided in this directory is a Dockerfile used for testing all OpenID related
-features. This Dockerfile, [irods-http-api-keycloak.Dockerfile](irods-http-api-keycloak.Dockerfile),
+features. This Dockerfile, [irods-http-api-keycloak.Dockerfile](irods_http_api_keycloak.Dockerfile),
 depends on [example-realm-export.json](example-realm-export.json) to
 provide the realm used for testing.
 
