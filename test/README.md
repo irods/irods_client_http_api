@@ -15,7 +15,7 @@ the Keycloak server communicate with each other.
 Following is an example of how to list all available docker networks with examples
 of how the output may appear:
 
-```console
+```bash
 $ docker network ls
 NETWORK ID     NAME                              DRIVER    SCOPE
 d06849108e9c   bridge                            bridge    local
@@ -34,13 +34,13 @@ The docker network used will be referred to as `<NETWORK>` in the following sect
 To run tests that require an OpenID Provider, make sure you build the image.
 To build the image simply run the following command in the `keycloak` directory:
 
-```console
-docker build -f irods-http-api-keycloak.Dockerfile -t irods-http-api-keycloak .
+```bash
+docker build -t irods-http-api-keycloak -f irods_http_api_keycloak.Dockerfile .
 ```
 
 After which, run the following command to startup Keycloak:
 
-```console
+```bash
 docker run --rm --network <NETWORK> -p 8080:8080 irods-http-api-keycloak start-dev
 ```
 
@@ -51,7 +51,7 @@ For example, in the HTTP API server's configuration file, `/http_server/host` wi
 configuration.
 
 To get this information run the following command:
-```console
+```bash
 docker network inspect <NETWORK>
 ```
 
@@ -62,7 +62,7 @@ See the [iRODS HTTP API README](/README.md) on how to build the iRODS HTTP API s
 Be sure to add the `--network <NETWORK>` flag, to have the container be able to communicate with the iRODS server, as well as the Keycloak server.
 
 An example of how the command may look is as follows:
-```console
+```bash
 docker run -d --rm --name irods_http_api \
     --network <NETWORK> \
     -v /path/to/config/file:/config.json:ro \
@@ -86,11 +86,11 @@ will produce false errors.
 ## Install `pytest` to run all tests
 
 Simply run the following command:
-```console
+```bash
 pip install pytest
 ```
 
 Afterwards you should be able to run all the tests by running the following command:
-```console
+```bash
 pytest
 ```
