@@ -8,7 +8,7 @@ FROM quay.io/keycloak/keycloak:23.0.6 AS builder
 RUN /opt/keycloak/bin/kc.sh build
 
 # Use our exported realm made for testing
-COPY example-realm-export.json /realm-export.json
+COPY example_realm_export.json /realm-export.json
 
 # Import realm at build time, this will shorten startup time
 RUN /opt/keycloak/bin/kc.sh import --file /realm-export.json
