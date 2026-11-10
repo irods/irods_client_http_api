@@ -6,7 +6,7 @@ test_config = {
 
     'host': 'localhost',
     'port': 9000,
-    'url_base': '/irods-http-api/<version>',
+    'url_base': '/irods-http-api/0.7.90',
 
     'openid_connect': {
         'mode': 'client'
