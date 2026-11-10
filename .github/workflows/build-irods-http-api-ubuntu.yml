@@ -81,10 +81,29 @@ jobs:
             irods-externals-nanodbc-libcxx2.13.0-2 \
             irods-externals-spdlog-libcxx1.9.2-2
 
+      - name: Configure Ccache
+        run: |
+          apt-get install -qq ccache
+          echo "CCACHE_DIR=/irods_build_cache" >> "$GITHUB_ENV"
+          echo "CCACHE_MAXSIZE=1G" >> "$GITHUB_ENV"
+
+      - name: Restore Ccache State
+        uses: actions/cache@v4
+        with:
+          key: "ccache-irods-http-api-${{ matrix.os }}-${{ matrix.irods-version }}-${{ github.sha }}"
+          restore-keys: "ccache-irods-http-api-${{ matrix.os }}-${{ matrix.irods-version }}-"
+          path: /irods_build_cache
+
       - name: Configure CMake
         run: |
           mkdir build
-          cmake -DIRODS_BUILD_WITH_WERROR=NO -GNinja -B build/ -S .
+          cmake \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DIRODS_BUILD_WITH_WERROR=NO \
+            -GNinja \
+            -B build/ \
+            -S .
 
       - name: Build and Package
         id: build-and-package
