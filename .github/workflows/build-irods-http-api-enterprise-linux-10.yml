@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         os: ['almalinux:10', 'rockylinux/rockylinux:10']
-        irods-version: [5.0.2]
+        irods-version: [5.0.2, 5.1.0]
 
     runs-on: ubuntu-latest
     container: ${{ matrix.os }}
