@@ -1,0 +1,128 @@
+import logging
+from jsonschema import validate
+
+test_config = {
+    'log_level': logging.INFO,
+
+    'host': 'localhost',
+    'port': 9000,
+    'url_base': '/irods-http-api/0.7.90',
+
+    'openid_connect': {
+        'mode': 'client'
+    },
+
+    'rodsadmin': {
+        'username': 'rods',
+        'password': 'rods'
+    },
+
+    'rodsuser': {
+        'username': 'http_api',
+        'password': 'http_api'
+    },
+
+    'irods_zone': 'tempZone',
+    'irods_server_hostname': 'localhost',
+
+    'run_genquery2_tests': True,
+
+    # Enable this configuration option if the HTTP API is compiled
+    # against the iRODS 5.1.0 development library or later.
+    'dstream_exposes_irods_error_codes': True,
+
+    # Requires that physical quotas be enabled on the iRODS server.
+    # See documentation for msiSetRescQuotaPolicy() to learn more.
+    'run_physical_quota_tests': True,
+
+    # Requires that logical quotas be enabled in the zone. Visit
+    # docs.irods.org to learn more about the built-in logical quotas
+    # system.
+    'run_logical_quota_tests': True,
+
+    # Enable this configuration option if the HTTP API is compiled
+    # against and connected to an iRODS 5 server (or later).
+    'run_access_time_tests': True
+}
+
+schema = {
+    '$schema': 'http://json-schema.org/draft-07/schema#',
+    '$id': 'https://schemas.irods.org/irods-http-api/test_config.json',
+    'type': 'object',
+    'properties': {
+        'host': {
+            'type': 'string'
+        },
+        'port': {
+            'type': 'number'
+        },
+        'url_base': {
+            'type': 'string'
+        },
+        'openid_connect': {
+            'type': 'object',
+            'properties': {
+                'mode': {
+                    'enum': [
+                        'client',
+                        'protected_resource'
+                    ]
+                }
+            },
+            'required': [ 'mode' ]
+        },
+        'rodsadmin': {
+            '$ref': '#/definitions/login'
+        },
+        'rodsuser': {
+            '$ref': '#/definitions/login'
+        },
+        'irods_zone': {
+            'type': 'string'
+        },
+        'irods_server_hostname': {
+            'type': 'string'
+        },
+        'run_genquery2_tests': {
+            'type': 'boolean'
+        },
+        'dstream_exposes_irods_error_codes': {
+            'type': 'boolean'
+        },
+        'run_physical_quota_tests': {
+            'type': 'boolean'
+        }
+    },
+    'required': [
+        'host',
+        'port',
+        'url_base',
+        'openid_connect',
+        'rodsadmin',
+        'rodsuser',
+        'irods_zone',
+        'irods_server_hostname',
+        'run_genquery2_tests',
+        'dstream_exposes_irods_error_codes',
+        'run_physical_quota_tests'
+    ],
+    'definitions': {
+        'login': {
+            'type': 'object',
+            'properties': {
+                'username': {
+                    'type': 'string'
+                },
+                'password': {
+                    'type': 'string'
+                }
+            },
+            'required': [
+                'username',
+                'password'
+            ]
+        }
+    }
+}
+
+validate(instance=test_config, schema=schema)

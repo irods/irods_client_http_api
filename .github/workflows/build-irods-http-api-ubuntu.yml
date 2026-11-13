@@ -1,73 +1,286 @@
 name: Build Package
-on: [ push, pull_request ]
+
+on: [push, pull_request]
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
+    name: "Build: ${{ matrix.os }} - ${{ matrix.irods-version }}"
+
     env:
       DEBIAN_FRONTEND: noninteractive
-    name: "${{ matrix.os }} - ${{ matrix.irods-version }}"
+
     strategy:
       fail-fast: false
       matrix:
-        os: [ 'ubuntu:22.04', 'ubuntu:24.04' ]
-        irods-version: [ 4.3.2, 5.0.0, 5.0.1 ]
+        os: ['ubuntu:22.04', 'ubuntu:24.04']
+        irods-version: [4.3.2, 5.0.0, 5.1.0]
         exclude:
           - os: 'ubuntu:24.04'
             irods-version: 4.3.2
+
     runs-on: ubuntu-latest
     container: ${{ matrix.os }}
+
+    outputs:
+      irods-runtime-version: ${{ steps.build-and-package.outputs.irods_runtime_version }}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
       - name: Install Prerequisites
-        run:  |
-              apt-get update -qq
-              apt-get install -qq \
-                apt-transport-https \
-                ca-certificates \
-                gnupg \
-                lsb-release \
-                wget \
-                g++-11 \
-                gcc-11 \
-                cmake \
-                libcurl4-gnutls-dev \
-                libssl-dev \
-                libssl3 \
-                ninja-build
+        run: |
+          apt-get update -qq
+          apt-get install -qq \
+            apt-transport-https \
+            ca-certificates \
+            cmake \
+            g++-11 \
+            gcc-11 \
+            gnupg \
+            libcurl4-gnutls-dev \
+            libssl-dev \
+            libssl3 \
+            lsb-release \
+            ninja-build \
+            wget
+
       - name: Install iRODS
-        run:  |
-              mkdir -p /etc/apt/keyrings
-              wget -qO - https://packages.irods.org/irods-signing-key.asc | \
-                gpg \
-                  --no-options \
-                  --no-default-keyring \
-                  --no-auto-check-trustdb \
-                  --homedir /dev/null \
-                  --no-keyring \
-                  --import-options import-export \
-                  --output /etc/apt/keyrings/renci-irods-archive-keyring.pgp \
-                  --import
-              echo "deb [signed-by=/etc/apt/keyrings/renci-irods-archive-keyring.pgp arch=amd64] https://packages.irods.org/apt/ $(lsb_release -sc) main" | \
-                tee /etc/apt/sources.list.d/renci-irods.list
-              apt-get update -qq
-              apt-get install -qq \
-                "irods-dev=${{ matrix.irods-version }}-0~$(lsb_release -sc)" \
-                "irods-runtime=${{ matrix.irods-version }}-0~$(lsb_release -sc)"
+        run: |
+          mkdir -p /etc/apt/keyrings
+          wget -qO - https://packages.irods.org/irods-signing-key.asc | \
+            gpg \
+              --no-options \
+              --no-default-keyring \
+              --no-auto-check-trustdb \
+              --homedir /dev/null \
+              --no-keyring \
+              --import-options import-export \
+              --output /etc/apt/keyrings/renci-irods-archive-keyring.pgp \
+              --import
+          echo "deb [signed-by=/etc/apt/keyrings/renci-irods-archive-keyring.pgp arch=amd64] https://packages.irods.org/apt/ $(lsb_release -sc) main" | \
+            tee /etc/apt/sources.list.d/renci-irods.list
+          apt-get update -qq
+          apt-get install -qq \
+            "irods-dev=${{ matrix.irods-version }}-0~$(lsb_release -sc)" \
+            "irods-runtime=${{ matrix.irods-version }}-0~$(lsb_release -sc)"
+
       - name: Install iRODS Externals
-        run:  |
-              apt-get update -qq
-              apt-get install -qq \
-                irods-externals-clang13.0.1-0 \
-                irods-externals-fmt-libcxx8.1.1-1 \
-                irods-externals-json3.10.4-0 \
-                irods-externals-jsoncons0.178.0-0 \
-                irods-externals-jwt-cpp0.6.99.1-0 \
-                irods-externals-nanodbc-libcxx2.13.0-2 \
-                irods-externals-spdlog-libcxx1.9.2-2
+        run: |
+          apt-get update -qq
+          apt-get install -qq \
+            irods-externals-clang13.0.1-0 \
+            irods-externals-fmt-libcxx8.1.1-1 \
+            irods-externals-json3.10.4-0 \
+            irods-externals-jsoncons0.178.0-0 \
+            irods-externals-jwt-cpp0.6.99.1-0 \
+            irods-externals-nanodbc-libcxx2.13.0-2 \
+            irods-externals-spdlog-libcxx1.9.2-2
+
+      - name: Configure Ccache
+        run: |
+          apt-get install -qq ccache
+          echo "CCACHE_DIR=/irods_build_cache" >> "$GITHUB_ENV"
+          echo "CCACHE_MAXSIZE=1G" >> "$GITHUB_ENV"
+
+      - name: Restore Ccache State
+        uses: actions/cache@v4
+        with:
+          key: "ccache-irods-http-api-${{ matrix.os }}-${{ matrix.irods-version }}-${{ github.sha }}"
+          restore-keys: "ccache-irods-http-api-${{ matrix.os }}-${{ matrix.irods-version }}-"
+          path: /irods_build_cache
+
       - name: Configure CMake
-        run:  |
-              mkdir build
-              cmake -DIRODS_BUILD_WITH_WERROR=NO -GNinja -B build/ -S .
+        run: |
+          mkdir build
+          cmake \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DIRODS_BUILD_WITH_WERROR=NO \
+            -GNinja \
+            -B build/ \
+            -S .
+
       - name: Build and Package
-        run:  |
-              cmake --build build/ -t package
+        id: build-and-package
+        run: |
+          cmake --build build/ -t package
+
+      - name: List contents of build directory
+        run: |
+          ls -lA build
+
+      - name: Upload ${{ matrix.irods-version }} build output for Testing
+        if: ${{ matrix.os == 'ubuntu:22.04' && (matrix.irods-version == '4.3.2' || matrix.irods-version == '5.1.0') }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: build_output-${{ matrix.irods-version }}
+          path: build/
+          overwrite: true
+
+  run_tests:
+    name: "Test: Binary compiled against ${{ matrix.irods-runtime-version }}"
+
+    needs: build
+
+    strategy:
+      fail-fast: false # Prevent cancellation of other matrix jobs when one fails.
+      matrix:
+        # This is the version of the irods-runtime package the HTTP API was compiled against.
+        irods-runtime-version: [4.3.2, 5.1.0]
+
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -qq \
+            apt-transport-https \
+            ca-certificates \
+            g++-11 \
+            gcc \
+            gcc-11 \
+            gnupg \
+            libssl3 \
+            lsb-release \
+            netcat-openbsd \
+            python3 \
+            wget
+
+      - name: Configure iRODS package repository
+        run: |
+          sudo mkdir -p /etc/apt/keyrings
+          wget -qO - https://packages.irods.org/irods-signing-key.asc | \
+            sudo gpg \
+              --no-options \
+              --no-default-keyring \
+              --no-auto-check-trustdb \
+              --homedir /dev/null \
+              --no-keyring \
+              --import-options import-export \
+              --output /etc/apt/keyrings/renci-irods-archive-keyring.pgp \
+              --import
+          echo "deb [signed-by=/etc/apt/keyrings/renci-irods-archive-keyring.pgp arch=amd64] https://packages.irods.org/apt/ $(lsb_release -sc) main" | \
+            sudo tee /etc/apt/sources.list.d/renci-irods.list
+          sudo apt-get update -qq
+          sudo apt-get install -qq \
+            irods-externals-clang-runtime13.0.1-0 \
+            irods-runtime=${{ matrix.irods-runtime-version }}-0~$(lsb_release -sc)
+
+      - name: Download build output
+        uses: actions/download-artifact@v7
+        with:
+          name: build_output-${{ matrix.irods-runtime-version }}
+          path: build/
+
+      - name: List contents of build directory
+        run: |
+          ls -lA build
+
+      - name: Install iRODS HTTP API server package
+        run: |
+          sudo apt-get install -qq ./build/irods-client-http-api*.deb
+
+      - name: Set up Docker Compose
+        uses: docker/setup-compose-action@v2
+
+      - name: Launch iRODS 4.3 server
+        run: |
+          cd test/docker
+          compose_file=docker-compose.irods4.yml
+          docker compose -f ${compose_file} build --build-arg 'irods_version=4.3.2'
+          # --wait causes this step to wait for services to be running/healthy.
+          # --wait-timeout is used to limit the wait time for all services to be running/healthy.
+          docker compose -f ${compose_file} up -d --wait --wait-timeout 60
+
+      # Remove once the environment_properties::capture provides an option for
+      # not printing error messages when irods_environment.json does not exist.
+      - name: Create irods_environment.json file to suppress noise
+        run: |
+          mkdir ${HOME}/.irods
+          echo '{}' > ${HOME}/.irods/irods_environment.json
+
+      - name: Run Tests against iRODS 4.3 server
+        run: |
+          config_files_dir=config_files_v4
+
+          # Launch the HTTP API server in the background. The configuration files for the HTTP API
+          # must align with the version of the development package it was compiled against.
+          irods_http_api test/docker/${config_files_dir}/http_api_server_config.json > /dev/null 2>&1 &
+
+          # Capture the PID of the HTTP API server so that it can be shut down later.
+          server_pid=$!
+
+          # Make sure to stop the HTTP API server no matter what.
+          trap 'kill "$server_pid" 2> /dev/null || true' EXIT
+
+          # Wait for the HTTP API server to start listening for connections.
+          chmod u+x test/docker/wait_for_http_api_server.sh
+          test/docker/wait_for_http_api_server.sh
+
+          # Copy the configuration file for the test suite into the correct location so that the
+          # test suite can load it.
+          if [[ "${{ matrix.irods-runtime-version }}" == '4.3.2' ]]; then
+            cp test/docker/${config_files_dir}/test_harness_config_irods4_build_irods4_server.py test/config.py
+          else
+            cp test/docker/config_files_v5/test_harness_config_irods5_build_irods4_server.py test/config.py
+          fi
+
+          # Run the python test suite.
+          python3 test/test_irods_http_api.py -v
+
+      - name: Stop iRODS Docker Compose services
+        run: |
+          cd test/docker
+          docker compose -f docker-compose.irods4.yml down
+
+      - name: Launch iRODS 5 server
+        run: |
+          cd test/docker
+          compose_file=docker-compose.irods5.yml
+          docker compose -f ${compose_file} build --build-arg 'irods_version=5.1.0'
+          # --wait causes this step to wait for services to be running/healthy.
+          # --wait-timeout is used to limit the wait time for all services to be running/healthy.
+          docker compose -f ${compose_file} up -d --wait --wait-timeout 60
+
+      - name: Run Tests against iRODS 5 server
+        run: |
+          config_files_dir=config_files_v5
+
+          # Launch the HTTP API server in the background. The configuration files for the HTTP API
+          # must align with the version of the development package it was compiled against.
+          irods_http_api test/docker/${config_files_dir}/http_api_server_config.json > /dev/null 2>&1 &
+
+          # Capture the PID of the HTTP API server so that it can be shut down later.
+          server_pid=$!
+
+          # Make sure to stop the HTTP API server no matter what.
+          trap 'kill "$server_pid" 2> /dev/null || true' EXIT
+
+          # Wait for the HTTP API server to start listening for connections.
+          chmod u+x test/docker/wait_for_http_api_server.sh
+          test/docker/wait_for_http_api_server.sh
+
+          # Copy the configuration file for the test suite into the correct location so that the
+          # test suite can load it.
+          if [[ "${{ matrix.irods-runtime-version }}" == '5.1.0' ]]; then
+            cp test/docker/${config_files_dir}/test_harness_config_irods5_build_irods5_server.py test/config.py
+          else
+            cp test/docker/config_files_v4/test_harness_config_irods4_build_irods5_server.py test/config.py
+          fi
+
+          # Run the python test suite.
+          python3 test/test_irods_http_api.py -v
+
+      - name: Stop iRODS Docker Compose services
+        run: |
+          cd test/docker
+          docker compose -f docker-compose.irods5.yml down

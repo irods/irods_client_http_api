@@ -1,57 +1,86 @@
 name: Build Package
-on: [ push, pull_request ]
+
+on: [push, pull_request]
+
 jobs:
   build:
     name: "${{ matrix.os }} - ${{ matrix.irods-version }}"
+
     strategy:
       fail-fast: false
       matrix:
-        os: [ 'almalinux:10', 'rockylinux/rockylinux:10' ]
-        irods-version: [ 5.0.2 ]
+        os: ['almalinux:10', 'rockylinux/rockylinux:10']
+        irods-version: [5.0.2, 5.1.0]
+
     runs-on: ubuntu-latest
     container: ${{ matrix.os }}
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
       - name: Install Prerequisites
-        run:  |
-              dnf update -y
-              dnf install -y \
-                dnf-plugin-config-manager \
-                dnf-plugins-core
-              dnf install -y \
-                epel-release
-              dnf config-manager -y --set-enabled crb
-              dnf install -y \
-                cmake \
-                fmt-devel \
-                libcurl-devel \
-                lsb_release \
-                ninja-build \
-                nlohmann_json-devel \
-                openssl-devel \
-                rpm-build \
-                spdlog-devel
+        run: |
+          dnf update -y
+          dnf install -y \
+            dnf-plugin-config-manager \
+            dnf-plugins-core
+          dnf install -y \
+            epel-release
+          dnf config-manager -y --set-enabled crb
+          dnf install -y \
+            cmake \
+            fmt-devel \
+            libcurl-devel \
+            lsb_release \
+            ninja-build \
+            nlohmann_json-devel \
+            openssl-devel \
+            rpm-build \
+            spdlog-devel
+
       - name: Install iRODS
-        run:  |
-              rpm --import https://packages.irods.org/irods-signing-key.asc
-              dnf config-manager -y --add-repo https://packages.irods.org/renci-irods.yum.repo
-              dnf config-manager -y --set-enabled renci-irods
-              dnf install -y \
-                "irods-devel-${{ matrix.irods-version }}-0.el10" \
-                "irods-runtime-${{ matrix.irods-version }}-0.el10"
+        run: |
+          rpm --import https://packages.irods.org/irods-signing-key.asc
+          dnf config-manager -y --add-repo https://packages.irods.org/renci-irods.yum.repo
+          dnf config-manager -y --set-enabled renci-irods
+          dnf install -y \
+            "irods-devel-${{ matrix.irods-version }}-0.el10" \
+            "irods-runtime-${{ matrix.irods-version }}-0.el10"
+
       - name: Install iRODS Externals
-        run:  |
-              dnf update -y
-              dnf install -y \
-                irods-externals-clang16.0.6-0 \
-                irods-externals-jsoncons0.178.0-0 \
-                irods-externals-jwt-cpp0.6.99.1-0 \
-                irods-externals-nanodbc2.13.0-3
+        run: |
+          dnf update -y
+          dnf install -y \
+            irods-externals-clang16.0.6-0 \
+            irods-externals-jsoncons0.178.0-0 \
+            irods-externals-jwt-cpp0.6.99.1-0 \
+            irods-externals-nanodbc2.13.0-3
+
+      - name: Configure Ccache
+        run: |
+          dnf install -y ccache
+          echo "CCACHE_DIR=/irods_build_cache" >> "$GITHUB_ENV"
+          echo "CCACHE_MAXSIZE=1G" >> "$GITHUB_ENV"
+
+      - name: Restore Ccache State
+        uses: actions/cache@v4
+        with:
+          key: "ccache-irods-http-api-${{ matrix.os }}-${{ matrix.irods-version }}-${{ github.sha }}"
+          restore-keys: "ccache-irods-http-api-${{ matrix.os }}-${{ matrix.irods-version }}-"
+          path: /irods_build_cache
+
       - name: Configure CMake
-        run:  |
-              mkdir build
-              cmake -DIRODS_BUILD_WITH_WERROR=NO -GNinja -B build/ -S .
+        run: |
+          mkdir build
+          cmake \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DIRODS_BUILD_WITH_WERROR=NO \
+            -GNinja \
+            -B build/ \
+            -S .
+
       - name: Build and Package
-        run:  |
-              cmake --build build/ -t package
+        run: |
+          cmake --build build/ -t package
