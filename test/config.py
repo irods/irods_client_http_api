@@ -38,7 +38,11 @@ test_config = {
     # Requires that logical quotas be enabled in the zone. Visit
     # docs.irods.org to learn more about the built-in logical quotas
     # system.
-    'run_logical_quota_tests': False
+    'run_logical_quota_tests': False,
+
+    # Enable this configuration option if the HTTP API is compiled
+    # against and connected to an iRODS 5 server (or later).
+    'run_access_time_tests': False
 }
 
 schema = {

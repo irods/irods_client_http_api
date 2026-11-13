@@ -25,6 +25,11 @@ def identity_or_invalid_handle(irods_error_code):
         return irods_error_code
     return irods_error_codes.INVALID_HANDLE
 
+# Returns the iRODS release version string as a tuple of integers.
+# "version_string" is expected to honor the following format: rods<major>.<minor>.<patch>
+def parse_irods_version_string(version_string):
+    return tuple(map(int, version_string.removeprefix('rods').split('.')))
+
 def setup_class(cls, opts):
     '''Initializes shared state needed by all test cases.
 
@@ -2955,6 +2960,12 @@ class test_data_objects_endpoint(unittest.TestCase):
         data_object = os.path.join('/', self.zone_name, 'home', self.rodsadmin_username, 'modrepl.txt')
 
         try:
+            # Determine if access time modification can be tested.
+            r = requests.get(f'{self.url_base}/info', headers=headers)
+            self.assertEqual(r.status_code, 200)
+            irods_server_version_tuple = parse_irods_version_string(r.json()['irods_server_version'])
+            test_atime = (irods_server_version_tuple >= (5, 0, 0)) and config.test_config.get('run_access_time_tests', False)
+
             # Create a data object.
             r = requests.post(self.url_endpoint, headers=headers, data={
                 'op': 'touch',
@@ -2980,17 +2991,23 @@ class test_data_objects_endpoint(unittest.TestCase):
             # Change the replica's status, data size, and access time.
             new_replica_status = 0
             new_data_size = 15
-            new_atime = '01700000000'
-            r = requests.post(self.url_endpoint, headers=headers, data={
+
+            properties = {
                 'op': 'modify_replica',
                 'lpath': data_object,
                 'replica-number': 0,
                 'new-data-replica-status': new_replica_status,
                 'new-data-size': new_data_size,
-                # TODO(#440): Test needs to know what version of iRODS the HTTP API is connected to
-                # in order to truly test modification of a replica's atime.
-                'new-data-access-time': new_atime
-            })
+            }
+
+            if test_atime:
+                new_atime = '01700000000'
+                properties['new-data-access-time'] = new_atime
+                query_string = f"select DATA_REPL_STATUS, DATA_SIZE, DATA_ACCESS_TIME where COLL_NAME = '{os.path.dirname(data_object)}' and DATA_NAME = '{os.path.basename(data_object)}'"
+            else:
+                query_string = f"select DATA_REPL_STATUS, DATA_SIZE where COLL_NAME = '{os.path.dirname(data_object)}' and DATA_NAME = '{os.path.basename(data_object)}'"
+
+            r = requests.post(self.url_endpoint, headers=headers, data=properties)
             self.logger.debug(r.content)
             self.assertEqual(r.status_code, 200)
             self.assertEqual(r.json()['irods_response']['status_code'], 0)
@@ -2998,7 +3015,7 @@ class test_data_objects_endpoint(unittest.TestCase):
             # Show the replica's status and size has changed in the catalog.
             r = requests.get(f'{self.url_base}/query', headers=headers, params={
                 'op': 'execute_genquery',
-                'query': f"select DATA_REPL_STATUS, DATA_SIZE, DATA_ACCESS_TIME where COLL_NAME = '{os.path.dirname(data_object)}' and DATA_NAME = '{os.path.basename(data_object)}'"
+                'query': query_string
             })
             self.logger.debug(r.content)
             self.assertEqual(r.status_code, 200)
@@ -3007,7 +3024,9 @@ class test_data_objects_endpoint(unittest.TestCase):
             self.assertEqual(result['irods_response']['status_code'], 0)
             self.assertEqual(result['rows'][0][0], str(new_replica_status))
             self.assertEqual(result['rows'][0][1], str(new_data_size))
-            self.assertEqual(result['rows'][0][2], new_atime)
+
+            if test_atime:
+                self.assertEqual(result['rows'][0][2], new_atime)
 
         finally:
             # Remove the data object.
