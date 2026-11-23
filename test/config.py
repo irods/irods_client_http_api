@@ -91,6 +91,12 @@ schema = {
         },
         'run_physical_quota_tests': {
             'type': 'boolean'
+        },
+        'run_logical_quota_tests': {
+            'type': 'boolean'
+        },
+        'run_access_time_tests': {
+            'type': 'boolean'
         }
     },
     'required': [
@@ -104,7 +110,9 @@ schema = {
         'irods_server_hostname',
         'run_genquery2_tests',
         'dstream_exposes_irods_error_codes',
-        'run_physical_quota_tests'
+        'run_physical_quota_tests',
+        'run_logical_quota_tests',
+        'run_access_time_tests'
     ],
     'definitions': {
         'login': {
