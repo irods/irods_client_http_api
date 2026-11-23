@@ -4777,7 +4777,7 @@ class test_logical_quotas_endpoint(unittest.TestCase):
 
     def test_server_returns_an_error_when_maximum_quota_parameters_are_missing(self):
         if not config.test_config.get('run_logical_quota_tests', False):
-            self.skipTest('Physical Quota tests not enabled. Check [run_logical_quota_tests] in test configuration file.')
+            self.skipTest('Logical Quota tests not enabled. Check [run_logical_quota_tests] in test configuration file.')
 
         rodsadmin_headers = {'Authorization': f'Bearer {self.rodsadmin_bearer_token}'}
 
