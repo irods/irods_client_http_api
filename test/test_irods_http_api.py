@@ -214,8 +214,33 @@ class test_authenticate_endpoint(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()['irods_response']['status_code'], 0)
 
+    def test_server_reports_error_when_credentials_are_incorrect(self):
+        test_cases = [
+            ('', ''),
+            ('not', 'valid'),
+            ('a' * 200, 'b' * 200),
+        ]
+
+        for username, password in test_cases:
+            with self.subTest(username=username, password=password):
+                r = requests.post(self.url_endpoint, auth=(username, password))
+                self.logger.debug(r.content)
+                self.assertEqual(r.status_code, 401)
+
     def test_server_reports_error_when_http_method_is_not_supported(self):
-        do_test_server_reports_error_when_http_method_is_not_supported(self)
+        methods = [
+            requests.head,
+            requests.get,
+            requests.put,
+            requests.delete,
+            requests.patch,
+        ]
+
+        for method in methods:
+            with self.subTest(method=method.__name__):
+                r = method(self.url_endpoint)
+                self.logger.debug(r.content)
+                self.assertEqual(r.status_code, 405)
 
 class test_collections_endpoint(unittest.TestCase):
 

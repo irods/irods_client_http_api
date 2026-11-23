@@ -82,15 +82,3 @@ Additionally, if you [get detailed network information](#get-detailed-network-in
 The configuration should reflect that of the iRODS HTTP API server configuration, otherwise, the incorrect tests may be ran.
 For example, having the HTTP API server set to `protected_resource` mode, while leaving the test configuration in `client` mode
 will produce false errors.
-
-## Install `pytest` to run all tests
-
-Simply run the following command:
-```bash
-pip install pytest
-```
-
-Afterwards you should be able to run all the tests by running the following command:
-```bash
-pytest
-```
